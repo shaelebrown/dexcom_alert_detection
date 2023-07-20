@@ -16,6 +16,11 @@ from scipy.io.wavfile import read
 from scipy import signal
 import matplotlib.pyplot as plt
 
+# background audio data for this project was downloaded from
+# https://github.com/karolpiczak/ESC-50#download
+
+# descom alerts were collected personally
+
 # play some example sounds
 typing = AudioSegment.from_wav("data/ESC-50-master/audio/1-137-A-32.wav")
 print(len(typing)) # 5000 = 5 sec
