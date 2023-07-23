@@ -13,6 +13,9 @@ import numpy as np
 import scipy.io.wavfile
 from scipy.io.wavfile import read
 from scipy import signal
+import tensorflow as tf
+import tensorflow.keras.layers as tfl
+from tensorflow.python.framework import ops
 
 # set random state for reproducibility
 random.seed(123)
@@ -109,15 +112,62 @@ test_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f,
 test_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in test_unclear_urgent_low],axis = 0)
 
 # combine into train, test and dev sets for features and labels
-train_X = np.concatenate([train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low], axis = 0)
-dev_X = np.concatenate([dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low], axis = 0)
-test_X = np.concatenate([test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low], axis = 0)
+X_train = np.concatenate([train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low], axis = 0)
+X_dev = np.concatenate([dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low], axis = 0)
+X_test = np.concatenate([test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low], axis = 0)
+del train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low
+del dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low
+del test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low
 
 # labels are one-hot encoded vectors from 4 classes
-negative = np.array([1,0,0,0]).reshape((4,1))
-high = np.array([0,1,0,0]).reshape((4,1))
-low = np.array([0,0,1,0]).reshape((4,1))
-urgent_low = np.array([0,0,0,1]).reshape((4,1))
-train_Y = np.concatenate([negative for x in range(400)] + [high for x in range(400)] + [low for x in range(400)] + [urgent_low for x in range(400)],axis = 1)
-dev_Y = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 1)
-test_Y = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 1)
+negative = np.array([1,0,0,0]).reshape((1,4))
+high = np.array([0,1,0,0]).reshape((1,4))
+low = np.array([0,0,1,0]).reshape((1,4))
+urgent_low = np.array([0,0,0,1]).reshape((1,4))
+Y_train = np.concatenate([negative for x in range(400)] + [high for x in range(400)] + [low for x in range(400)] + [urgent_low for x in range(400)],axis = 0)
+Y_dev = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
+Y_test = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
+
+# now let's try a convolutional model
+def convolutional_model(input_shape):
+    '''
+    A simple convolutional model with two CONV2D->RELU->MAXPOOL blocks,
+    followed by a dense layer.
+    '''
+    # get input
+    input_spec = tf.keras.Input(shape=input_shape)
+    # CONV2D: 8 filters 4x4, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 8,kernel_size = 4,padding = 'same')(input_spec)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 8x8, stride 8, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (8,8),strides = (8,8),padding = 'same')(X)
+    # CONV2D: 8 filters 4x4, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 8,kernel_size = 4,padding = 'same')(X)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 8x8, stride 8, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (8,8),strides = (8,8),padding = 'same')(X)
+    # FLATTEN
+    X = tfl.Flatten()(X)
+    # Dense layer
+    # 4 neurons in output layer.
+    outputs = tfl.Dense(units = 4,activation = 'softmax')(X)
+    model = tf.keras.Model(inputs=input_spec, outputs=outputs)
+    return model
+
+# compile model and summarize
+conv_model = convolutional_model((1071, 129, 1)) # need extra dimension for "gray scale"
+conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+conv_model.summary() # 2804 (trainable) params
+
+# train model
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+history = conv_model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+# print final training and dev set accuracies and dev set confusion matrix
+history.history['accuracy'][19] # about 28%
+history.history['val_accuracy'][19] # about 30%, so not great..
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(conv_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# low was predicted a lot, out of real low labels it performed well (sensitive) but otherwise not (not specific)
