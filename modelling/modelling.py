@@ -128,6 +128,51 @@ Y_train = np.concatenate([negative for x in range(400)] + [high for x in range(4
 Y_dev = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
 Y_test = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
 
+# split into batches for training speed
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+
+# let's start with a recurrent neural network model
+def recurrent_model(input_shape):
+    '''
+    A recurrent model with two Unidirectional layers of LSTM blocks.
+    '''
+    # get input
+    input_spec = tf.keras.Input(input_shape)
+    # CONV1D layer with 196 filters, a filter size of 15, and stride of 4, 
+    # then BatchNorm and ReLu
+    #X = tfl.Conv1D(filters=196,kernel_size=15,strides=4)(input_spec)
+    #X = tfl.BatchNormalization()(X)
+    #X = tfl.Activation('relu')(X)
+    # Dropout with rate 0.8
+    #X = tfl.Dropout(rate=0.8)(X)
+    # First LSTM layer with 128 units with 0.8-rate dropout.
+    X = tfl.GRU(units=128, return_sequences = False,dropout = 0.8)(input_spec) # final one has to have return_sequences = False
+    # Batch norm
+    #X = tfl.BatchNormalization()(X)
+    # Second LSTM layer and batch norm
+    #X = tfl.LSTM(units=128, return_sequences = True,dropout = 0.8)(X)
+    #X = tfl.BatchNormalization()(X)
+    # Dense layer
+    outputs = tfl.Dense(4, activation = "softmax")(X)
+    # output
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+# create model and print summary
+rnn_model = recurrent_model((1071,129))
+rnn_model.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+rnn_model.summary() # 678860 trainable parameters
+
+# train model
+history = rnn_model.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
+
+# print final training and dev set accuracies and dev set confusion matrix
+history.history['accuracy'][19] # about 20%
+history.history['val_accuracy'][19] # about 23%, so worse than chance
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(rnn_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# highs and lows were predicted a lot, but not even with high sensitivity..
+
 # now let's try a convolutional model
 def convolutional_model(input_shape):
     '''
@@ -162,8 +207,6 @@ conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['ac
 conv_model.summary() # 2804 (trainable) params
 
 # train model
-train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
-dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
 history = conv_model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
 
 # print final training and dev set accuracies and dev set confusion matrix
@@ -171,3 +214,4 @@ history.history['accuracy'][19] # about 28%
 history.history['val_accuracy'][19] # about 30%, so not great..
 tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(conv_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
 # low was predicted a lot, out of real low labels it performed well (sensitive) but otherwise not (not specific)
+# lows are pretty easy - clear low frequency same note tones
