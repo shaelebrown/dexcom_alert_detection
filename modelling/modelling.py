@@ -130,9 +130,6 @@ dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
 
 # let's start with a recurrent neural network model with one GRU layer followed by a dense layer
 def recurrent_model(input_shape):
-    '''
-    A recurrent model with two Unidirectional layers of LSTM blocks.
-    '''
     # get input
     input_spec = tf.keras.Input(input_shape)
     # CONV1D layer with 196 filters, a filter size of 15, and stride of 4, 
@@ -156,8 +153,8 @@ def recurrent_model(input_shape):
     return model
 
 # create model and print summary
-rnn_model = recurrent_model((1071,129))
-rnn_model.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+rnn_model = recurrent_model((1071, 129))
+rnn_model.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 rnn_model.summary() # 99972 trainable parameters
 
 # train model
@@ -170,9 +167,6 @@ tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.ar
 
 # need higher training set accuracy! Let's start by adding a second GRU layer
 def recurrent_model_2layer(input_shape):
-    '''
-    A recurrent model with two Unidirectional layers of LSTM blocks.
-    '''
     # get input
     input_spec = tf.keras.Input(input_shape)
     # CONV1D layer with 196 filters, a filter size of 15, and stride of 4, 
@@ -197,8 +191,8 @@ def recurrent_model_2layer(input_shape):
     return model
 
 # create model and print summary
-rnn_model_2layer = recurrent_model_2layer((1071,129))
-rnn_model_2layer.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+rnn_model_2layer = recurrent_model_2layer((1071, 129))
+rnn_model_2layer.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 rnn_model_2layer.summary() # 199044 trainable parameters
 
 # train model
@@ -212,9 +206,6 @@ tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.ar
 
 # complex model
 def complex_model(input_shape):
-    '''
-    A recurrent model with two Unidirectional layers of LSTM blocks.
-    '''
     # get input
     input_spec = tf.keras.Input(input_shape)
     # CONV1D layer with 196 filters, a filter size of 15, and stride of 4, 
@@ -238,8 +229,8 @@ def complex_model(input_shape):
     return model
 
 # create model and print summary
-c_model = complex_model((1071,129))
-c_model.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+c_model = complex_model((1071, 129))
+c_model.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 c_model.summary() # 678860 trainable parameters
 
 # train model
@@ -253,9 +244,6 @@ tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.ar
 
 # trying a bidirectional LSTM model
 def bi_rnn_model(input_shape):
-    '''
-    Simple bidirectional rnn model with single LSTM layer with no dropout
-    '''
     input_spec = tf.keras.Input(shape=input_shape)
     X = tfl.Bidirectional(tfl.LSTM(units = 128,return_sequences = False))(input_spec)
     outputs = tfl.Dense(4,activation = 'softmax')(X)
@@ -263,7 +251,7 @@ def bi_rnn_model(input_shape):
     return model
 
 bi_rnn = bi_rnn_model((1071, 129))
-bi_rnn.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi_rnn.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_rnn.summary() # 265220 trainable parameters
 
 history = bi_rnn.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
@@ -274,8 +262,6 @@ tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.ar
 
 # now let's try a complex bidirectional LSTM model
 def bi_complex_rnn(input_shape):
-    '''
-    '''
     input_spec = tf.keras.Input(shape=input_shape)
     # CONV1D layer with 196 filters, a filter size of 15, and stride of 4, 
     # then BatchNorm and ReLu
@@ -295,18 +281,16 @@ def bi_complex_rnn(input_shape):
     model = tf.keras.Model(inputs = input_spec,outputs = outputs)
     return model
 
-bi_rnn = bi_complex_rnn((1071,129))
-bi_rnn.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi_rnn = bi_complex_rnn((1071, 129))
+bi_rnn.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_rnn.summary() # 1108428 trainable params
 
 history = bi_rnn.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
 # top training accuracy of about 64%, validation accuracy of 28%
-tf.math.confusion_matrix(labels = np.argmax(Y_dev,axis = 1),predictions = np.argmax(bi_rnn(X_dev),axis = 1)) # only predicing lows and highs basically
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(bi_rnn(X_dev), axis = 1)) # only predicing lows and highs basically
 
 # three layer simple bidirectional LSTM model
 def bi_3layer(input_shape):
-    '''
-    '''
     input_spec = tf.keras.Input(shape=input_shape)
     X = tfl.Bidirectional(tfl.LSTM(units = 128,return_sequences = True))(input_spec)
     X = tfl.Bidirectional(tfl.LSTM(units = 128,return_sequences = True))(X)
@@ -316,7 +300,7 @@ def bi_3layer(input_shape):
     return model
 
 bi_3 = bi_3layer((1071, 129))
-bi_3.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi_3.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_3.summary() # 1053700 trainable parameters
 
 history = bi_3.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # not great
@@ -331,10 +315,10 @@ def bi_rnn2(input_shape):
     model = tf.keras.Model(inputs = input_spec,outputs = outputs)
     return model
 
-bi2 = bi_rnn2((1071,129))
-bi2.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi2 = bi_rnn2((1071, 129))
+bi2.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi2.summary() # 265732 trainable params
-history = bi2.fit(train_dataset, epochs = 20,validation_data = dev_dataset) # not great..
+history = bi2.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # not great..
 
 def bi_rnn_256(input_shape):
     input_spec = tf.keras.Input(shape = input_shape)
@@ -343,9 +327,9 @@ def bi_rnn_256(input_shape):
     model = tf.keras.Model(inputs = input_spec,outputs = output)
     return model
 bi_256 = bi_rnn_256((1071,129))
-bi_256.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi_256.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_256.summary() # 792580 parameters
-history = bi_256.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
+history = bi_256.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # getting better...
 
 def bi_rnn_512(input_shape):
     input_spec = tf.keras.Input(shape = input_shape)
@@ -353,13 +337,28 @@ def bi_rnn_512(input_shape):
     output = tfl.Dense(4,activation = 'softmax')(X)
     model = tf.keras.Model(inputs = input_spec,outputs = output)
     return model
-bi512 = bi_rnn_512((1071,129))
-bi512.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi512 = bi_rnn_512((1071, 129))
+bi512.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi512.summary() # 2633732 params
 history = bi512.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # best yet by far!!
 # final training accuracy 83%, dev accuracy 72%!!
-tf.math.confusion_matrix(labels = np.argmax(Y_dev,axis = 1),predictions = np.argmax(bi512(X_dev),axis = 1)) # best at predicting urgent lows then lows then highs then background.
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(bi512(X_dev), axis = 1)) # best at predicting urgent lows then lows then highs then background.
 # pretty sensitive and specific!
+
+# now let's try with more hidden units
+def bi_rnn_1024(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 1024,return_sequences = False))(input_spec)
+    outputs = tfl.Dense(4,activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec,outputs = outputs)
+    return model
+
+bi1024 = bi_rnn_1024((1071,129))
+bi1024.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['accuracy'])
+bi1024.summary() # 9461764 trainable params (wow..)
+history = bi1024.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # about the same as the 512 model..
+
+
 
 # now let's try a convolutional model
 def convolutional_model(input_shape):
