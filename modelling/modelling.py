@@ -17,8 +17,8 @@ import tensorflow as tf
 import tensorflow.keras.layers as tfl
 from tensorflow.python.framework import ops
 
-# set random state for reproducibility
-random.seed(123)
+# set random state for reproducibility in python, numpy and tf
+tf.keras.utils.set_random_seed(123)
 
 # read in dexcom alert recordings and segment
 clear_alerts = AudioSegment.from_file('data/alerts/clear_alerts.m4a')
@@ -326,6 +326,7 @@ def bi_rnn_256(input_shape):
     output = tfl.Dense(4,activation = 'softmax')(X)
     model = tf.keras.Model(inputs = input_spec,outputs = output)
     return model
+
 bi_256 = bi_rnn_256((1071,129))
 bi_256.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_256.summary() # 792580 parameters
@@ -337,6 +338,7 @@ def bi_rnn_512(input_shape):
     output = tfl.Dense(4,activation = 'softmax')(X)
     model = tf.keras.Model(inputs = input_spec,outputs = output)
     return model
+
 bi512 = bi_rnn_512((1071, 129))
 bi512.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi512.summary() # 2633732 params
@@ -358,7 +360,8 @@ bi1024.compile(optimizer = 'adam',loss = 'categorical_crossentropy',metrics = ['
 bi1024.summary() # 9461764 trainable params (wow..)
 history = bi1024.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # about the same as the 512 model..
 
-
+# circling back to the bidirectional model with 512 hidden units:
+history = bi512.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try a convolutional model
 def convolutional_model(input_shape):
