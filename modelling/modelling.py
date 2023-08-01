@@ -31,8 +31,8 @@ unclear_low = unclear_alerts[6000:8000]
 unclear_urgent_low = unclear_alerts[11500:14000]
 
 # splitting data into train, test and dev sets
-fnames = os.listdir('/Users/jibaccount/Downloads/ESC-50-master/audio')
-esc_meta = pd.read_csv("/Users/jibaccount/Downloads/ESC-50-master/meta/esc50.csv")
+fnames = os.listdir('data/ESC-50-master/audio')
+esc_meta = pd.read_csv("data/ESC-50-master/meta/esc50.csv")
 train, subset = train_test_split(fnames, test_size = 0.2, random_state = 123)
 dev, test = train_test_split(subset, test_size = 0.5, random_state = 123)
 del subset
@@ -342,10 +342,37 @@ def bi_rnn_512(input_shape):
 bi512 = bi_rnn_512((1071, 129))
 bi512.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi512.summary() # 2633732 params
-history = bi512.fit(train_dataset, epochs = 20, validation_data = dev_dataset) # best yet by far!!
+history = bi512.fit(train_dataset, epochs = 40, validation_data = dev_dataset) # best yet by far!!
 # final training accuracy 83%, dev accuracy 72%!!
-tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(bi512(X_dev), axis = 1)) # best at predicting urgent lows then lows then highs then background.
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(bi512(X_dev), axis = 1)) # best at predicting urgent lows then no alerts then lows then highs.
 # pretty sensitive and specific!
+
+# now with dropout to deal with overfitting
+def bi512_dropout(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.8))(input_spec)
+    output = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec,outputs = output)
+    return model
+
+bi512_drop = bi512_dropout((1071, 129))
+bi512_drop.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+bi512_drop.summary() # same number of parameters as bi512
+history = bi512_drop.fit(train_dataset, epochs = 40, validation_data = dev_dataset) # not great..
+
+# instead let's add an extra dense layer
+def bi512_2D(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+bi_2D = bi512_2D((1071, 129))
+bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+bi_2D.summary() # 2761348 parameters
+history = bi_2D.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try with more hidden units
 def bi_rnn_1024(input_shape):
