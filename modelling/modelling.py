@@ -30,12 +30,7 @@ unclear_high = unclear_alerts[700:3700]
 unclear_low = unclear_alerts[6000:8000]
 unclear_urgent_low = unclear_alerts[11500:14000]
 
-# splitting data into train, test and dev sets
-fnames = os.listdir('data/ESC-50-master/audio')
-esc_meta = pd.read_csv("data/ESC-50-master/meta/esc50.csv")
-train, subset = train_test_split(fnames, test_size = 0.2, random_state = 123)
-dev, test = train_test_split(subset, test_size = 0.5, random_state = 123)
-del subset
+# functions
 
 # divide each of train, dev and test into eights (by alert type),
 # two parts negative examples and one part from each of the six alert
@@ -58,10 +53,6 @@ def split_into_eights(X):
     unclear_urgent_low = split222
     return negative, high, low, urgent_low, unclear_high, unclear_low, unclear_urgent_low
 
-train_negative, train_high, train_low, train_urgent_low, train_unclear_high, train_unclear_low, train_unclear_urgent_low = split_into_eights(train)
-dev_negative, dev_high, dev_low, dev_urgent_low, dev_unclear_high, dev_unclear_low, dev_unclear_urgent_low = split_into_eights(dev)
-test_negative, test_high, test_low, test_urgent_low, test_unclear_high, test_unclear_low, test_unclear_urgent_low = split_into_eights(test)
-
 # function to compute spectrogram from audio file, 
 # potentially overlaying alert sound
 def spectrogram(fname, alert = None):
@@ -81,52 +72,76 @@ def spectrogram(fname, alert = None):
     os.remove(fname) # remove temp file
     return Sxx
 
-# overlay correct alerts over each audio clip, convert to spectrograms
-# and concatenate
-train_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in train_negative],axis = 0)
-train_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in train_low],axis = 0)
-train_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in train_high],axis = 0)
-train_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in train_urgent_low],axis = 0)
-train_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in train_unclear_low],axis = 0)
-train_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in train_unclear_high],axis = 0)
-train_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in train_unclear_urgent_low],axis = 0)
+# function to create training, dev and test datasets
+def generate_data():
+    # splitting data into train, test and dev sets
+    fnames = os.listdir('data/ESC-50-master/audio')
+    train, subset = train_test_split(fnames, test_size = 0.2, random_state = 123)
+    dev, test = train_test_split(subset, test_size = 0.5, random_state = 123)
+    del subset
+    train_negative, train_high, train_low, train_urgent_low, train_unclear_high, train_unclear_low, train_unclear_urgent_low = split_into_eights(train)
+    dev_negative, dev_high, dev_low, dev_urgent_low, dev_unclear_high, dev_unclear_low, dev_unclear_urgent_low = split_into_eights(dev)
+    test_negative, test_high, test_low, test_urgent_low, test_unclear_high, test_unclear_low, test_unclear_urgent_low = split_into_eights(test)
+    # overlay correct alerts over each audio clip, convert to spectrograms
+    # and concatenate
+    train_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in train_negative],axis = 0)
+    train_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in train_low],axis = 0)
+    train_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in train_high],axis = 0)
+    train_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in train_urgent_low],axis = 0)
+    train_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in train_unclear_low],axis = 0)
+    train_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in train_unclear_high],axis = 0)
+    train_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in train_unclear_urgent_low],axis = 0)
+    dev_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in dev_negative],axis = 0)
+    dev_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in dev_low],axis = 0)
+    dev_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in dev_high],axis = 0)
+    dev_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in dev_urgent_low],axis = 0)
+    dev_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in dev_unclear_low],axis = 0)
+    dev_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in dev_unclear_high],axis = 0)
+    dev_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in dev_unclear_urgent_low],axis = 0)
+    test_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in test_negative],axis = 0)
+    test_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in test_low],axis = 0)
+    test_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in test_high],axis = 0)
+    test_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in test_urgent_low],axis = 0)
+    test_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in test_unclear_low],axis = 0)
+    test_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in test_unclear_high],axis = 0)
+    test_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in test_unclear_urgent_low],axis = 0)
+    # combine into train, test and dev sets for features and labels
+    X_train = np.concatenate([train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low], axis = 0)
+    X_dev = np.concatenate([dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low], axis = 0)
+    X_test = np.concatenate([test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low], axis = 0)
+    del train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low
+    del dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low
+    del test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low
+    # labels are one-hot encoded vectors from 4 classes
+    negative = np.array([1,0,0,0]).reshape((1,4))
+    high = np.array([0,1,0,0]).reshape((1,4))
+    low = np.array([0,0,1,0]).reshape((1,4))
+    urgent_low = np.array([0,0,0,1]).reshape((1,4))
+    Y_train = np.concatenate([negative for x in range(400)] + [high for x in range(400)] + [low for x in range(400)] + [urgent_low for x in range(400)],axis = 0)
+    Y_dev = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
+    Y_test = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
+    # split into batches for training speed
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
+    dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+    return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
-dev_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in dev_negative],axis = 0)
-dev_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in dev_low],axis = 0)
-dev_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in dev_high],axis = 0)
-dev_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in dev_urgent_low],axis = 0)
-dev_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in dev_unclear_low],axis = 0)
-dev_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in dev_unclear_high],axis = 0)
-dev_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in dev_unclear_urgent_low],axis = 0)
+# generate data
+train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_data()
 
-test_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None) for f in test_negative],axis = 0)
-test_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low') for f in test_low],axis = 0)
-test_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high') for f in test_high],axis = 0)
-test_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low') for f in test_urgent_low],axis = 0)
-test_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low') for f in test_unclear_low],axis = 0)
-test_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high') for f in test_unclear_high],axis = 0)
-test_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low') for f in test_unclear_urgent_low],axis = 0)
+# current best model
+def bi512_2D(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
 
-# combine into train, test and dev sets for features and labels
-X_train = np.concatenate([train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low], axis = 0)
-X_dev = np.concatenate([dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low], axis = 0)
-X_test = np.concatenate([test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low], axis = 0)
-del train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low
-del dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low
-del test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low
-
-# labels are one-hot encoded vectors from 4 classes
-negative = np.array([1,0,0,0]).reshape((1,4))
-high = np.array([0,1,0,0]).reshape((1,4))
-low = np.array([0,0,1,0]).reshape((1,4))
-urgent_low = np.array([0,0,0,1]).reshape((1,4))
-Y_train = np.concatenate([negative for x in range(400)] + [high for x in range(400)] + [low for x in range(400)] + [urgent_low for x in range(400)],axis = 0)
-Y_dev = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
-Y_test = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
-
-# split into batches for training speed
-train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
-dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+bi_2D = bi512_2D((1071, 129))
+bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+bi_2D.summary() # 2761348 parameters
+history = bi_2D.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
+bi_2D.save('modelling/model.keras')
 
 # let's start with a recurrent neural network model with one GRU layer followed by a dense layer
 def recurrent_model(input_shape):
@@ -359,20 +374,6 @@ bi512_drop = bi512_dropout((1071, 129))
 bi512_drop.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi512_drop.summary() # same number of parameters as bi512
 history = bi512_drop.fit(train_dataset, epochs = 40, validation_data = dev_dataset) # not great..
-
-# instead let's add an extra dense layer
-def bi512_2D(input_shape):
-    input_spec = tf.keras.Input(shape = input_shape)
-    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
-    X = tfl.Dense(128, activation = 'tanh')(X)
-    outputs = tfl.Dense(4, activation = 'softmax')(X)
-    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
-    return model
-
-bi_2D = bi512_2D((1071, 129))
-bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
-bi_2D.summary() # 2761348 parameters
-history = bi_2D.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try with more hidden units
 def bi_rnn_1024(input_shape):
