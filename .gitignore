@@ -166,4 +166,4 @@ cython_debug/
 .DS_Store
 
 # ignore the dummy script
-dummy_script
+dummy
