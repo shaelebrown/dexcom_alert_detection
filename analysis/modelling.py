@@ -16,6 +16,7 @@ from scipy import signal
 import tensorflow as tf
 import tensorflow.keras.layers as tfl
 from tensorflow.python.framework import ops
+from keras.regularizers import l2
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -141,7 +142,7 @@ bi_2D = bi512_2D((1071, 129))
 bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_2D.summary() # 2761348 parameters
 history = bi_2D.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
-bi_2D.save('modelling/model.keras')
+bi_2D.save('analysis/model.keras')
 
 # let's start with a recurrent neural network model with one GRU layer followed by a dense layer
 def recurrent_model(input_shape):
@@ -390,6 +391,48 @@ history = bi1024.fit(train_dataset, epochs = 20, validation_data = dev_dataset) 
 
 # circling back to the bidirectional model with 512 hidden units:
 history = bi512.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
+
+# new model with L2 regularization parameter 1
+def regularized_1(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, kernel_regularizer = l2(1e-5)))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh', kernel_regularizer = l2(1e-5))(X)
+    outputs = tfl.Dense(4, activation = 'softmax', kernel_regularizer = l2(1e-5))(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+r1 = regularized_1((1071, 129))
+r1.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+r1.summary()
+history = r1.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
+
+# new model with L2 regularization parameter 1e-3
+def regularized_2(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, kernel_regularizer = l2(1e-3)))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh', kernel_regularizer = l2(1e-3))(X)
+    outputs = tfl.Dense(4, activation = 'softmax', kernel_regularizer = l2(1e-3))(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+r2 = regularized_2((1071, 129))
+r2.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+r2.summary()
+history = r2.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
+
+# new model with L2 regularization parameter 1e-1
+def regularized_3(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, kernel_regularizer = l2(1e-1)))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh', kernel_regularizer = l2(1e-1))(X)
+    outputs = tfl.Dense(4, activation = 'softmax', kernel_regularizer = l2(1e-1))(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+r3 = regularized_3((1071, 129))
+r3.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+r3.summary()
+history = r3.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try a convolutional model
 def convolutional_model(input_shape):
