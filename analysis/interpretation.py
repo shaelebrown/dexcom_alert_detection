@@ -12,6 +12,13 @@ from tensorflow.python.framework import ops
 import keras
 import matplotlib.pyplot as plt
 import re
+import pydub
+from pydub import AudioSegment
+from pydub.playback import play
+import scipy.io.wavfile
+from scipy.io.wavfile import read
+from scipy import signal
+import os
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -42,40 +49,61 @@ explainer = lime_tabular.RecurrentTabularExplainer(
     class_names = class_names,
     discretizer = 'decile')
 
-# but this takes a long time per prediction.. about 20 mins for me
-prediction = model(X_train[0,:,:].reshape(1,1071,129))
+# let's look at dev set instance 190 (index 189):
+prediction = model.predict(X_dev[189,:,:].reshape((1, 1071, 129)))
+print(np.array(class_names)[np.argmax(Y_dev[189,:])]) # real urgent low
+print(np.array(class_names)[np.argmax(prediction)]) # predicted negative by model! This is really bad..
+
+# let's listen to the instance:
+unclear_alerts = AudioSegment.from_file('data/alerts/under_blanket_alerts.m4a')
+unclear_urgent_low = unclear_alerts[11500:14000]
+instance = AudioSegment.from_file('data/ESC-50-master/audio/5-204604-A-24.wav')
+instance = instance.set_frame_rate(48000)
+instance = instance.overlay(unclear_urgent_low, position = 1408)
+play(instance)
+
+# verify that the instance is the same as what the model saw:
+fname = "data/ESC-50-master/audio/temp.wav"
+instance.export(fname,format = "wav")
+sr_value, x_value = scipy.io.wavfile.read(fname)
+_, _, Sxx= signal.spectrogram(x_value,sr_value)
+Sxx = Sxx.swapaxes(0,1)
+Sxx = np.expand_dims(Sxx, axis = 0)
+os.remove(fname)
+np.array_equal(model.predict(Sxx),prediction) # yup exactly the same prediction values
+del Sxx, fname, instance, sr_value, x_value, unclear_alerts, unclear_urgent_low
+
+# let's see why the model thought the prediction was negative
+# this took about 27 mins for me...
 exp = explainer.explain_instance(
-    data_row = X_train[0,:,:].reshape(1,1071,129),
+    data_row = X_dev[189,:,:].reshape(1,1071,129),
     classifier_fn = model.predict)
 exp.as_pyplot_figure()
 exp.as_map()
 plt.show() # doesn't show y labs clearly
 # plt.savefig('analysis/sample_explanation.png', bbox_inches="tight") # this does!
 
+# plot one spectrogram
 t = 0.0026666666666666666 + 0.004666666666666666*np.arange(1071) # consistent across files
 f = 187.5*np.arange(129) # consistent across all files
-
 plt.clf()
-plt.pcolormesh(t, f, X_dev[0,:,:].T)
+plt.pcolormesh(t, f, X_dev[189,:,:].T)
 plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
-plt.title('Actual spectrogram for X_dev[0]')
+plt.title('Actual spectrogram for X_dev[189,:,:]')
 plt.show()
 
-# now plot with specific coefficients from explainer
+# now plot spectrogram with specific coefficients from exp
 exp_spec = np.zeros((1071, 129))
 exp_list = exp.as_list()
 for (i,j) in exp_list:
-    if len(i.split(sep = '<')) <= 2 or len(i.split(sep = '>')) <= 2:
-        continue # fix this!
-    if not(re.search('0.00 <',i)) or not(re.search('<= 0.00',i)):
-        a = i.split(sep = '_')[0].split(sep = ' < ')[1]
-        b = i.split(sep = '-')[1].split(sep = ' <= ')[0]
-        exp_spec[int(b), int(a)] = j
+    s = i.split(sep = '_t-')
+    a = int(s[0].split(sep = ' ')[-1])
+    b = int(s[1].split(sep = ' ')[0])
+    exp_spec[b, a] = j  
+plt.clf()
 plt.pcolormesh(t, f, exp_spec.T)
 plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
-plt.title('Actual spectrogram for X_dev[0]')
+plt.title('Explanation for X_dev[189,:,:]')
 plt.show()
-
-
