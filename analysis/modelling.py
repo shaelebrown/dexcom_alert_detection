@@ -145,6 +145,10 @@ bi_2D = bi512_2D((1071, 129))
 bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
 bi_2D.summary() # 2761348 parameters
 history = bi_2D.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
+# get test set accuracy
+m = tf.keras.metrics.Accuracy()
+m.update_state(np.argmax(Y_test, axis = 1),np.argmax(bi_2D.predict(X_test), axis = 1))
+m.result().numpy() # 73.5% performance
 bi_2D.save('analysis/model.keras')
 
 # let's start with a recurrent neural network model with one GRU layer followed by a dense layer
