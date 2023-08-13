@@ -126,8 +126,11 @@ def generate_data():
     dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
     return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
-# generate data
+# generate data and save
 train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_data()
+np.savetxt('data/modelling/train.txt', X_train.reshape(X_train.shape[0], -1))
+np.savetxt('data/modelling/dev.txt', X_dev.reshape(X_dev.shape[0], -1))
+np.savetxt('data/modelling/test.txt', X_test.reshape(X_test.shape[0], -1))
 
 # current best model
 def bi512_2D(input_shape):
