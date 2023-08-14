@@ -107,3 +107,33 @@ plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
 plt.title('Explanation for X_dev[189,:,:]')
 plt.show()
+
+# what do the training predictions look like?
+# clearly they are at most 3D (p0 = 1 - (p1 + p2 + p3))
+training_predictions = model.predict(X_train)
+p_high = training_predictions[:,1]
+p_low = training_predictions[:,2]
+p_urgent_low = training_predictions[:,3]
+
+# plot prediction probability PDP's (partial dependence plots)
+fig, axs = plt.subplots(3,figsize=(7/3, 7))
+axs[0].scatter(x = p_high,y = p_low)
+axs[0].set_xlabel('Prob High')
+axs[0].set_ylabel('Prob Low')
+axs[1].scatter(x = p_high,y = p_urgent_low)
+axs[1].set_xlabel('Prob High')
+axs[1].set_ylabel('Prob Urgent Low')
+axs[2].scatter(x = p_low,y = p_urgent_low)
+axs[2].set_xlabel('Prob Low')
+axs[2].set_ylabel('Prob Urgent Low')
+fig.suptitle('Prediction probability PDPs', fontsize='xx-large')
+fig.tight_layout(pad=1.0)
+plt.show()
+
+# this shows that (roughly) either Prob High is close to 0, or
+# Prob Low = 1 - Prob High (upper plot) and 
+# Prob Urgent Low is close to 0
+
+# therefore we can parameterize the whole prediction space by the
+# following variables
+training_prediction_2D = np.vstack(((1 - p_high)*p_low + p_high*(1 - p_high),(1 - p_high)*p_urgent_low + p_high*(1 - p_urgent_low))).T
