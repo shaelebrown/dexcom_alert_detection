@@ -20,6 +20,13 @@ from scipy.io.wavfile import read
 from scipy import signal
 import os
 from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
+import math
+from scipy.stats import false_discovery_control
+import warnings
+warnings.filterwarnings("ignore")
+from scipy.stats import t
+from sklearn.decomposition import PCA
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -148,7 +155,6 @@ plt.show()
 # we will split the data into four overlapping regions - triangles of side
 # width 0.3 around each vertex of the main train, and a middle region which
 # expands until the 0.15 triangles around each vertex:
-plt.clf()
 plt.scatter(x = training_prediction_2D[:,0],y = training_prediction_2D[:,1])
 plt.ylabel('Embedding dim 2')
 plt.xlabel('Embedding dim 1')
@@ -169,16 +175,83 @@ int2 = np.intersect1d(np.array(np.where(training_prediction_2D[:,1] <= 0.85)[0])
 middle_cover = np.union1d(int1,int2)
 del int1, int2
 
-# now cluster within each cover and determine optimal number of clusters
+# we will now flatten each of the cover preimage sets
 flattened_top = X_train[top_cover,:,:].reshape((len(top_cover),1071*129))
 flattened_left = X_train[left_cover,:,:].reshape((len(left_cover),1071*129))
 flattened_right = X_train[right_cover,:,:].reshape((len(right_cover),1071*129))
 flattened_middle = X_train[middle_cover,:,:].reshape((len(middle_cover),1071*129))
-BIC_top = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_top).aic(flattened_top) for nclust in range(1,50)]
-BIC_left = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_left).aic(flattened_left) for nclust in range(1,50)]
-BIC_right = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_right).aic(flattened_right) for nclust in range(1,50)]
-BIC_middle = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_middle).aic(flattened_middle) for nclust in range(1,50)]
-nclust_top = range(1,50)[np.argmin(BIC_top)]
-nclust_left = range(1,50)[np.argmin(BIC_left)]
-nclust_right = range(1,50)[np.argmin(BIC_right)]
-nclust_middle = range(1,50)[np.argmin(BIC_middle)]
+
+# we can also try with PCA:
+pca = PCA(n_components=20, random_state = 123)
+top_pca = pca.fit(flattened_top)
+pca = PCA(n_components=20, random_state = 123)
+left_pca = pca.fit(flattened_left)
+pca = PCA(n_components=20, random_state = 123)
+right_pca = pca.fit(flattened_right)
+pca = PCA(n_components=20, random_state = 123)
+middle_pca = pca.fit(flattened_middle)
+fig, axs = plt.subplots(2, 2)
+axs[0,0].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = top_pca.explained_variance_ratio_)
+axs[0,0].set_xlabel('Component')
+axs[0,0].set_ylabel('Ratio Var Explained')
+axs[0,0].set_title('Top Preimage Set')
+axs[0,1].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = left_pca.explained_variance_ratio_)
+axs[0,1].set_xlabel('Component')
+axs[0,1].set_ylabel('Ratio Var Explained')
+axs[0,1].set_title('Left Preimage Set')
+axs[1,0].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = right_pca.explained_variance_ratio_)
+axs[1,0].set_xlabel('Component')
+axs[1,0].set_ylabel('Ratio Var Explained')
+axs[1,0].set_title('Right Preimage Set')
+axs[1,1].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = middle_pca.explained_variance_ratio_)
+axs[1,1].set_xlabel('Component')
+axs[1,1].set_ylabel('Ratio Var Explained')
+axs[1,1].set_title('Middle Preimage Set')
+fig.tight_layout(pad=1.0)
+plt.show()
+
+# the first 10, 14, 10 and 11 components account for 50% of the
+# variance in each pca model
+np.sum(top_pca.explained_variance_ratio_[0:9])
+np.sum(left_pca.explained_variance_ratio_[0:13])
+np.sum(right_pca.explained_variance_ratio_[0:9])
+np.sum(middle_pca.explained_variance_ratio_[0:10])
+
+# we will now project each preimage set onto those
+# numbers of components
+flattened_top = top_pca.transform(flattened_top)[:,0:9]
+flattened_left = left_pca.transform(flattened_left)[:,0:13]
+flattened_right = right_pca.transform(flattened_right)[:,0:9]
+flattened_middle = middle_pca.transform(flattened_middle)[:,0:10]
+
+# now we will compute clusterings between 2 and 20 clusters and plot to find
+# the elbow points
+kmeans_top = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_top).inertia_ for nclust in range(2,21)]
+kmeans_left = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_left).inertia_ for nclust in range(2,21)]
+kmeans_right = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_right).inertia_ for nclust in range(2,21)]
+kmeans_middle = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_middle).inertia_ for nclust in range(2,21)]
+fig, axs = plt.subplots(2, 2)
+axs[0,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_top)
+axs[0,0].set_xlabel('Clusters')
+axs[0,0].set_ylabel('WSS')
+axs[0,0].set_title('Top Preimage Set')
+axs[0,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_left)
+axs[0,1].set_xlabel('Clusters')
+axs[0,1].set_ylabel('WSS')
+axs[0,1].set_title('Left Preimage Set')
+axs[1,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_right)
+axs[1,0].set_xlabel('Clusters')
+axs[1,0].set_ylabel('WSS')
+axs[1,0].set_title('Right Preimage Set')
+axs[1,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_middle)
+axs[1,1].set_xlabel('Clusters')
+axs[1,1].set_ylabel('WSS')
+axs[1,1].set_title('Middle Preimage Set')
+fig.tight_layout(pad=1.0)
+plt.show()
+
+# it looks like the optimal number of clusters (based on visual elbow points) are
+# 10 for the top and right preimage sets and
+# 15 for the left and middle preimage sets
+
+# now we can compute a mapper graph!
