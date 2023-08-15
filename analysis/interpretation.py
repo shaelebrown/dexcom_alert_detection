@@ -19,6 +19,7 @@ import scipy.io.wavfile
 from scipy.io.wavfile import read
 from scipy import signal
 import os
+from sklearn.mixture import GaussianMixture
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -158,3 +159,26 @@ plt.fill_between(np.arange(0.7, 1, 0.01), 0, 1 - np.arange(0.7, 1, 0.01),facecol
 plt.fill_between(np.arange(0.15, 0.85, 0.01), 0, 1 - np.arange(0.15, 0.85, 0.01),facecolor='gray', interpolate=True, alpha = 0.3)
 plt.fill_between(np.arange(0, 0.16, 0.01), 0.15 - np.arange(0, 0.16, 0.01), 0.85,facecolor='gray', interpolate=True, alpha = 0.3)
 plt.show()
+
+# now let's get the cover sets
+top_cover = np.array(np.where(training_prediction_2D[:,1] >= 0.7)[0])
+right_cover = np.array(np.where(training_prediction_2D[:,0] >= 0.7)[0])
+left_cover = np.array(np.where(0.3 - training_prediction_2D[:,0] >= 0)[0])
+int1 = np.intersect1d(np.array(np.where(training_prediction_2D[:,0] <= 0.85)[0]),np.array(np.where(training_prediction_2D[:,0] >= 0.3)[0]))
+int2 = np.intersect1d(np.array(np.where(training_prediction_2D[:,1] <= 0.85)[0]),np.array(np.where(0.3 - training_prediction_2D[:,0] <= training_prediction_2D[:,0])[0]))
+middle_cover = np.union1d(int1,int2)
+del int1, int2
+
+# now cluster within each cover and determine optimal number of clusters
+flattened_top = X_train[top_cover,:,:].reshape((len(top_cover),1071*129))
+flattened_left = X_train[left_cover,:,:].reshape((len(left_cover),1071*129))
+flattened_right = X_train[right_cover,:,:].reshape((len(right_cover),1071*129))
+flattened_middle = X_train[middle_cover,:,:].reshape((len(middle_cover),1071*129))
+BIC_top = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_top).aic(flattened_top) for nclust in range(1,50)]
+BIC_left = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_left).aic(flattened_left) for nclust in range(1,50)]
+BIC_right = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_right).aic(flattened_right) for nclust in range(1,50)]
+BIC_middle = [GaussianMixture(n_components = nclust, random_state = 123).fit(flattened_middle).aic(flattened_middle) for nclust in range(1,50)]
+nclust_top = range(1,50)[np.argmin(BIC_top)]
+nclust_left = range(1,50)[np.argmin(BIC_left)]
+nclust_right = range(1,50)[np.argmin(BIC_right)]
+nclust_middle = range(1,50)[np.argmin(BIC_middle)]
