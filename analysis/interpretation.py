@@ -137,3 +137,24 @@ plt.show()
 # therefore we can parameterize the whole prediction space by the
 # following variables
 training_prediction_2D = np.vstack(((1 - p_high)*p_low + p_high*(1 - p_high),(1 - p_high)*p_urgent_low + p_high*(1 - p_urgent_low))).T
+plt.clf()
+plt.scatter(x = training_prediction_2D[:,0],y = training_prediction_2D[:,1])
+plt.ylabel('Embedding dim 2')
+plt.xlabel('Embedding dim 1')
+plt.title('2D Embedding of model predictions')
+plt.show()
+
+# we will split the data into four overlapping regions - triangles of side
+# width 0.3 around each vertex of the main train, and a middle region which
+# expands until the 0.15 triangles around each vertex:
+plt.clf()
+plt.scatter(x = training_prediction_2D[:,0],y = training_prediction_2D[:,1])
+plt.ylabel('Embedding dim 2')
+plt.xlabel('Embedding dim 1')
+plt.title('Cover of 2D model predictions')
+plt.fill_between(np.arange(0.0, 0.3, 0.01), 0.7, 1 - np.arange(0.0, 0.3, 0.01),facecolor='green', interpolate=True, alpha = 0.3)
+plt.fill_between(np.arange(0.0, 0.3, 0.01), 0, 0.3 - np.arange(0.0, 0.3, 0.01),facecolor='red', interpolate=True, alpha = 0.3)
+plt.fill_between(np.arange(0.7, 1, 0.01), 0, 1 - np.arange(0.7, 1, 0.01),facecolor='blue', interpolate=True, alpha = 0.3)
+plt.fill_between(np.arange(0.15, 0.85, 0.01), 0, 1 - np.arange(0.15, 0.85, 0.01),facecolor='gray', interpolate=True, alpha = 0.3)
+plt.fill_between(np.arange(0, 0.16, 0.01), 0.15 - np.arange(0, 0.16, 0.01), 0.85,facecolor='gray', interpolate=True, alpha = 0.3)
+plt.show()
