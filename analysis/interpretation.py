@@ -175,61 +175,22 @@ int2 = np.intersect1d(np.array(np.where(training_prediction_2D[:,1] <= 0.85)[0])
 middle_cover = np.union1d(int1,int2)
 del int1, int2
 
-# we will now flatten each of the cover preimage sets
-flattened_top = X_train[top_cover,:,:].reshape((len(top_cover),1071*129))
-flattened_left = X_train[left_cover,:,:].reshape((len(left_cover),1071*129))
-flattened_right = X_train[right_cover,:,:].reshape((len(right_cover),1071*129))
-flattened_middle = X_train[middle_cover,:,:].reshape((len(middle_cover),1071*129))
+# now we will extract the final layer activations for mapper
+intermediate_output = tf.keras.Model(model.input,model.get_layer('dense').output)
+activations = np.array(intermediate_output(X_train))
 
-# we can also try with PCA:
-pca = PCA(n_components=20, random_state = 123)
-top_pca = pca.fit(flattened_top)
-pca = PCA(n_components=20, random_state = 123)
-left_pca = pca.fit(flattened_left)
-pca = PCA(n_components=20, random_state = 123)
-right_pca = pca.fit(flattened_right)
-pca = PCA(n_components=20, random_state = 123)
-middle_pca = pca.fit(flattened_middle)
-fig, axs = plt.subplots(2, 2)
-axs[0,0].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = top_pca.explained_variance_ratio_)
-axs[0,0].set_xlabel('Component')
-axs[0,0].set_ylabel('Ratio Var Explained')
-axs[0,0].set_title('Top Preimage Set')
-axs[0,1].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = left_pca.explained_variance_ratio_)
-axs[0,1].set_xlabel('Component')
-axs[0,1].set_ylabel('Ratio Var Explained')
-axs[0,1].set_title('Left Preimage Set')
-axs[1,0].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = right_pca.explained_variance_ratio_)
-axs[1,0].set_xlabel('Component')
-axs[1,0].set_ylabel('Ratio Var Explained')
-axs[1,0].set_title('Right Preimage Set')
-axs[1,1].scatter(x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = middle_pca.explained_variance_ratio_)
-axs[1,1].set_xlabel('Component')
-axs[1,1].set_ylabel('Ratio Var Explained')
-axs[1,1].set_title('Middle Preimage Set')
-fig.tight_layout(pad=1.0)
-plt.show()
-
-# the first 10, 14, 10 and 11 components account for 50% of the
-# variance in each pca model
-np.sum(top_pca.explained_variance_ratio_[0:9])
-np.sum(left_pca.explained_variance_ratio_[0:13])
-np.sum(right_pca.explained_variance_ratio_[0:9])
-np.sum(middle_pca.explained_variance_ratio_[0:10])
-
-# we will now project each preimage set onto those
-# numbers of components
-flattened_top = top_pca.transform(flattened_top)[:,0:9]
-flattened_left = left_pca.transform(flattened_left)[:,0:13]
-flattened_right = right_pca.transform(flattened_right)[:,0:9]
-flattened_middle = middle_pca.transform(flattened_middle)[:,0:10]
+# subset for preimage sets
+top_preimage = activations[top_cover,:]
+left_preimage = activations[left_cover,:]
+right_preimage = activations[right_cover,:]
+middle_preimage = activations[middle_cover,:]
 
 # now we will compute clusterings between 2 and 20 clusters and plot to find
 # the elbow points
-kmeans_top = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_top).inertia_ for nclust in range(2,21)]
-kmeans_left = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_left).inertia_ for nclust in range(2,21)]
-kmeans_right = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_right).inertia_ for nclust in range(2,21)]
-kmeans_middle = [KMeans(n_clusters = nclust, random_state = 123).fit(flattened_middle).inertia_ for nclust in range(2,21)]
+kmeans_top = [KMeans(n_clusters = nclust, random_state = 123).fit(top_preimage).inertia_ for nclust in range(2,21)]
+kmeans_left = [KMeans(n_clusters = nclust, random_state = 123).fit(left_preimage).inertia_ for nclust in range(2,21)]
+kmeans_right = [KMeans(n_clusters = nclust, random_state = 123).fit(right_preimage).inertia_ for nclust in range(2,21)]
+kmeans_middle = [KMeans(n_clusters = nclust, random_state = 123).fit(middle_preimage).inertia_ for nclust in range(2,21)]
 fig, axs = plt.subplots(2, 2)
 axs[0,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_top)
 axs[0,0].set_xlabel('Clusters')
@@ -250,8 +211,33 @@ axs[1,1].set_title('Middle Preimage Set')
 fig.tight_layout(pad=1.0)
 plt.show()
 
-# it looks like the optimal number of clusters (based on visual elbow points) are
-# 10 for the top and right preimage sets and
-# 15 for the left and middle preimage sets
-
-# now we can compute a mapper graph!
+# 10 clusters seems sufficient across all preimage sets, so we'll use that
+# in mapper for the dev set analysis
+activations_dev = np.array(intermediate_output(X_dev))
+predictions_dev = model.predict(X_dev)
+p_high = predictions_dev[:,1]
+p_low = predictions_dev[:,2]
+p_urgent_low = predictions_dev[:,3]
+dev_predictions_2D = np.vstack(((1 - p_high)*p_low + p_high*(1 - p_high),(1 - p_high)*p_urgent_low + p_high*(1 - p_urgent_low))).T
+top_cover = np.array(np.where(dev_predictions_2D[:,1] >= 0.7)[0])
+right_cover = np.array(np.where(dev_predictions_2D[:,0] >= 0.7)[0])
+left_cover = np.array(np.where(0.3 - dev_predictions_2D[:,0] >= 0)[0])
+int1 = np.intersect1d(np.array(np.where(dev_predictions_2D[:,0] <= 0.85)[0]),np.array(np.where(dev_predictions_2D[:,0] >= 0.3)[0]))
+int2 = np.intersect1d(np.array(np.where(dev_predictions_2D[:,1] <= 0.85)[0]),np.array(np.where(0.3 - dev_predictions_2D[:,0] <= dev_predictions_2D[:,0])[0]))
+middle_cover = np.union1d(int1,int2)
+del int1, int2
+top_preimage = activations_dev[top_cover,:]
+left_preimage = activations_dev[left_cover,:]
+right_preimage = activations_dev[right_cover,:]
+middle_preimage = activations_dev[middle_cover,:]
+clusters_top = KMeans(n_clusters = 10, random_state = 123).fit(top_preimage).labels_
+clusters_left = KMeans(n_clusters = 10, random_state = 123).fit(left_preimage).labels_
+clusters_right = KMeans(n_clusters = 10, random_state = 123).fit(right_preimage).labels_
+clusters_middle = KMeans(n_clusters = 10, random_state = 123).fit(middle_preimage).labels_
+adj = np.zeros((30,30))
+overlaps_top_left = np.intersect1d(top_cover,left_cover)
+overlaps_top_right = np.intersect1d(top_cover,right_cover)
+overlaps_left_right = np.intersect1d(left_cover,right_cover)
+overlaps_middle_left = np.intersect1d(middle_cover,left_cover)
+overlaps_middle_right = np.intersect1d(middle_cover,right_cover)
+overlaps_middle_top = np.intersect1d(middle_cover,top_cover)
