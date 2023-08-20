@@ -27,6 +27,7 @@ import warnings
 warnings.filterwarnings("ignore")
 from scipy.stats import t
 from sklearn.decomposition import PCA
+import igraph as ig
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -211,7 +212,8 @@ axs[1,1].set_title('Middle Preimage Set')
 fig.tight_layout(pad=1.0)
 plt.show()
 
-# 10 clusters seems sufficient across all preimage sets, so we'll use that
+# 5 clusters seems sufficient across all preimage sets (and
+# based on the small sample size of the dev set), so we'll use that
 # in mapper for the dev set analysis
 activations_dev = np.array(intermediate_output(X_dev))
 predictions_dev = model.predict(X_dev)
@@ -230,10 +232,14 @@ top_preimage = activations_dev[top_cover,:]
 left_preimage = activations_dev[left_cover,:]
 right_preimage = activations_dev[right_cover,:]
 middle_preimage = activations_dev[middle_cover,:]
-clusters_top = KMeans(n_clusters = 10, random_state = 123).fit(top_preimage).labels_
-clusters_left = KMeans(n_clusters = 10, random_state = 123).fit(left_preimage).labels_
-clusters_right = KMeans(n_clusters = 10, random_state = 123).fit(right_preimage).labels_
-clusters_middle = KMeans(n_clusters = 10, random_state = 123).fit(middle_preimage).labels_
+clustering_top = KMeans(n_clusters = 10, random_state = 123).fit(top_preimage)
+clustering_left = KMeans(n_clusters = 10, random_state = 123).fit(left_preimage)
+clustering_right = KMeans(n_clusters = 10, random_state = 123).fit(right_preimage)
+clustering_middle = KMeans(n_clusters = 10, random_state = 123).fit(middle_preimage)
+clusters_top = clustering_top.labels_
+clusters_left = clustering_left.labels_
+clusters_right = clustering_right.labels_
+clusters_middle = clustering_middle.labels_
 adj = np.zeros((30,30))
 overlaps_top_left = np.intersect1d(top_cover,left_cover)
 overlaps_top_right = np.intersect1d(top_cover,right_cover)
@@ -241,3 +247,36 @@ overlaps_left_right = np.intersect1d(left_cover,right_cover)
 overlaps_middle_left = np.intersect1d(middle_cover,left_cover)
 overlaps_middle_right = np.intersect1d(middle_cover,right_cover)
 overlaps_middle_top = np.intersect1d(middle_cover,top_cover)
+edges = np.zeros((40,40))
+for o in overlaps_top_left:
+    edges[clusters_top[np.where(top_cover == o)[0][0]],10 + clusters_left[np.where(left_cover == o)[0][0]]] = 1
+    edges[10 + clusters_left[np.where(left_cover == o)[0][0]],clusters_top[np.where(top_cover == o)[0][0]]] = 1
+for o in overlaps_top_right:
+    edges[clusters_top[np.where(top_cover == o)[0][0]],20 + clusters_right[np.where(right_cover == o)[0][0]]] = 1
+    edges[20 + clusters_right[np.where(right_cover == o)[0][0]],clusters_top[np.where(top_cover == o)[0][0]]] = 1
+for o in overlaps_left_right:
+    edges[10 + clusters_left[np.where(left_cover == o)[0][0]],20 + clusters_right[np.where(right_cover == o)[0][0]]] = 1
+    edges[20 + clusters_right[np.where(right_cover == o)[0][0]],10 + clusters_left[np.where(left_cover == o)[0][0]]] = 1
+for o in overlaps_middle_right:
+    edges[30 + clusters_middle[np.where(middle_cover == o)[0][0]],20 + clusters_right[np.where(right_cover == o)[0][0]]] = 1
+    edges[20 + clusters_right[np.where(right_cover == o)[0][0]],30 + clusters_middle[np.where(middle_cover == o)[0][0]]] = 1
+for o in overlaps_middle_left:
+    edges[30 + clusters_middle[np.where(middle_cover == o)[0][0]],10 + clusters_left[np.where(left_cover == o)[0][0]]] = 1
+    edges[10 + clusters_left[np.where(left_cover == o)[0][0]],30 + clusters_middle[np.where(middle_cover == o)[0][0]]] = 1
+for o in overlaps_middle_top:
+    edges[30 + clusters_middle[np.where(middle_cover == o)[0][0]],clusters_top[np.where(top_cover == o)[0][0]]] = 1
+    edges[clusters_top[np.where(top_cover == o)[0][0]],30 + clusters_middle[np.where(middle_cover == o)[0][0]]] = 1
+
+# create and visualize mapper graph
+g = ig.Graph.Adjacency(edges, mode = 'undirected')
+vertex_size = [len(np.where(clusters_top == i)[0]) for i in range(10)] + [len(np.where(clusters_left == i)[0]) for i in range(10)] + [len(np.where(clusters_right == i)[0]) for i in range(10)] + [len(np.where(clusters_middle == i)[0]) for i in range(10)]
+vertex_size = [i/max(vertex_size) for i in vertex_size]
+# color mapping
+def rgb_to_hex(r, g, b):
+    return '#{:02X}{:02X}{:02X}'.format(r, g, b)
+# p_urgent_low is red, p_low is green, p_high is blue
+vertex_color = [rgb_to_hex(int(255*p_urgent_low[i]), int(255*p_low[i]), int(255*p_high[i])) for i in range(len(p_low))]
+plt.clf()
+fig, ax = plt.subplots()
+ig.plot(g, target=ax, vertex_size = vertex_size, vertex_color = vertex_color)
+plt.show()
