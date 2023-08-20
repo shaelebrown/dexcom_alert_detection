@@ -240,7 +240,6 @@ clusters_top = clustering_top.labels_
 clusters_left = clustering_left.labels_
 clusters_right = clustering_right.labels_
 clusters_middle = clustering_middle.labels_
-adj = np.zeros((30,30))
 overlaps_top_left = np.intersect1d(top_cover,left_cover)
 overlaps_top_right = np.intersect1d(top_cover,right_cover)
 overlaps_left_right = np.intersect1d(left_cover,right_cover)
@@ -269,6 +268,7 @@ for o in overlaps_middle_top:
 
 # create and visualize mapper graph
 g = ig.Graph.Adjacency(edges, mode = 'undirected')
+layout = g.layout(layout='auto')
 vertex_size = [len(np.where(clusters_top == i)[0]) for i in range(10)] + [len(np.where(clusters_left == i)[0]) for i in range(10)] + [len(np.where(clusters_right == i)[0]) for i in range(10)] + [len(np.where(clusters_middle == i)[0]) for i in range(10)]
 vertex_size = [i/max(vertex_size) for i in vertex_size]
 # color mapping
@@ -276,7 +276,19 @@ def rgb_to_hex(r, g, b):
     return '#{:02X}{:02X}{:02X}'.format(r, g, b)
 # p_urgent_low is red, p_low is green, p_high is blue
 vertex_color = [rgb_to_hex(int(255*p_urgent_low[i]), int(255*p_low[i]), int(255*p_high[i])) for i in range(len(p_low))]
+high_color = [rgb_to_hex(0, 0, int(255*p_high[i])) for i in range(len(p_high))]
+low_color = [rgb_to_hex(0, int(255*p_low[i]), 0) for i in range(len(p_low))]
+urgent_low_color = [rgb_to_hex(int(255*p_urgent_low[i]), 0, 0) for i in range(len(p_urgent_low))]
+p_negative = predictions_dev[:,0]
+negative_color = [rgb_to_hex(int(255*p_negative[i]), int(255*p_negative[i]), int(255*p_negative[i])) for i in range(len(p_urgent_low))]
 plt.clf()
-fig, ax = plt.subplots()
-ig.plot(g, target=ax, vertex_size = vertex_size, vertex_color = vertex_color)
+fig, ax = plt.subplots(2, 2)
+ax[0,0].set_title('Probability high alert')
+ax[0,1].set_title('Probability no alert')
+ax[1,0].set_title('Probability low alert')
+ax[1,1].set_title('Probability urgent low alert')
+ig.plot(g, target=ax[0,0], vertex_size = vertex_size, vertex_color = high_color, layout = layout)
+ig.plot(g, target=ax[0,1], vertex_size = vertex_size, vertex_color = negative_color, layout = layout)
+ig.plot(g, target=ax[1,0], vertex_size = vertex_size, vertex_color = low_color, layout = layout)
+ig.plot(g, target=ax[1,1], vertex_size = vertex_size, vertex_color = urgent_low_color, layout = layout)
 plt.show()
