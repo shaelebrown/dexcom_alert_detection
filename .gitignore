@@ -170,3 +170,6 @@ cython_debug/
 
 # ignore large data files
 data/modelling/*.txt
+
+# ignore modified audio
+data/modelling/modified_audio_files

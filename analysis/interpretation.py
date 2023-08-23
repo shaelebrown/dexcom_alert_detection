@@ -28,6 +28,9 @@ warnings.filterwarnings("ignore")
 from scipy.stats import t
 from sklearn.decomposition import PCA
 import igraph as ig
+import time
+from sklearn.metrics import plot_confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -116,6 +119,10 @@ plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
 plt.title('Explanation for X_dev[189,:,:]')
 plt.show()
+
+# now let's plot the confusion matrices
+# DO!!!
+
 
 # what do the training predictions look like?
 # clearly they are at most 3D (p0 = 1 - (p1 + p2 + p3))
@@ -281,6 +288,7 @@ low_color = [rgb_to_hex(0, int(255*p_low[i]), 0) for i in range(len(p_low))]
 urgent_low_color = [rgb_to_hex(int(255*p_urgent_low[i]), 0, 0) for i in range(len(p_urgent_low))]
 p_negative = predictions_dev[:,0]
 negative_color = [rgb_to_hex(int(255*p_negative[i]), int(255*p_negative[i]), int(255*p_negative[i])) for i in range(len(p_urgent_low))]
+labels = ["t" + str(i) for i in range(10)] + ["l" + str(i) for i in range(10)] + ["r" + str(i) for i in range(10)] + ["m" + str(i) for i in range(10)]
 plt.clf()
 fig, ax = plt.subplots(2, 2)
 ax[0,0].set_title('Probability high alert')
@@ -292,3 +300,12 @@ ig.plot(g, target=ax[0,1], vertex_size = vertex_size, vertex_color = negative_co
 ig.plot(g, target=ax[1,0], vertex_size = vertex_size, vertex_color = low_color, layout = layout)
 ig.plot(g, target=ax[1,1], vertex_size = vertex_size, vertex_color = urgent_low_color, layout = layout)
 plt.show()
+
+# play audio clips in different vertices
+vertex = 0 # first top class (0)
+inds = top_cover[np.where(clusters_top == 0)]
+for ind in inds:
+    audio = AudioSegment.from_wav('data/modelling/modified_audio_files/dev_' + str(ind) + '.wav')
+    play(audio)
+    time.sleep(1)
+# plays in a loop
