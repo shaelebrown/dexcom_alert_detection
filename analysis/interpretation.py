@@ -121,8 +121,36 @@ plt.title('Explanation for X_dev[189,:,:]')
 plt.show()
 
 # now let's plot the confusion matrices
-# DO!!!
-
+predictions_dev = model(X_dev)
+predictions_train = model(X_train)
+conf_dev = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions_dev, axis = 1)).numpy() # rows are real labels, columns are predicted labels
+conf_train = tf.math.confusion_matrix(labels = np.argmax(Y_train, axis = 1),predictions = np.argmax(predictions_train, axis = 1)).numpy()
+conf_dev = conf_dev/conf_dev.sum(axis = 1, keepdims = True)
+conf_train = conf_train/conf_train.sum(axis = 1, keepdims = True)
+plt.clf()
+fig, axs = plt.subplots(1, 2)
+axs[0].imshow(np.flip(conf_train, axis = 0), cmap='hot', interpolation='nearest')
+axs[0].set_title('Training set confusion matrix')
+axs[1].imshow(np.flip(conf_dev, axis = 0), cmap='hot', interpolation='nearest')
+axs[1].set_title('Dev set confusion matrix')
+axs[0].set_xlabel('Predicted label')
+axs[1].set_xlabel('Predicted label')
+axs[0].set_ylabel('Actual label')
+axs[1].set_ylabel('Actual label')
+axs[0].set_xticks(np.array([0,1,2,3]),np.array(['None', 'High', 'Low', 'Urgent low']))
+axs[1].set_xticks(np.array([0,1,2,3]),np.array(['None', 'High', 'Low', 'Urgent low']))
+axs[0].set_yticks(np.array([3,2,1,0]),np.array(['None', 'High', 'Low', 'Urgent low']))
+axs[1].set_yticks(np.array([3,2,1,0]),np.array(['None', 'High', 'Low', 'Urgent low']))
+fig.tight_layout(pad=1.0)
+plt.show()
+# on dev set the model is less good at correctly predicting lows and negatives
+# also the model predicts low for more of both negatives and highs, so what are some examples?
+incorrect_pred_low = np.intersect1d(np.where(np.argmax(Y_dev, axis = 1) != 2), np.where(np.argmax(predictions_dev, axis = 1) == 2))
+for ind in incorrect_pred_low:
+    audio = AudioSegment.from_wav('data/modelling/modified_audio_files/dev_' + str(ind) + '.wav')
+    play(audio)
+    time.sleep(1)
+# mainly no alert or quiet (muffled) high alert
 
 # what do the training predictions look like?
 # clearly they are at most 3D (p0 = 1 - (p1 + p2 + p3))
@@ -195,31 +223,33 @@ middle_preimage = activations[middle_cover,:]
 
 # now we will compute clusterings between 2 and 20 clusters and plot to find
 # the elbow points
-kmeans_top = [KMeans(n_clusters = nclust, random_state = 123).fit(top_preimage).inertia_ for nclust in range(2,21)]
-kmeans_left = [KMeans(n_clusters = nclust, random_state = 123).fit(left_preimage).inertia_ for nclust in range(2,21)]
-kmeans_right = [KMeans(n_clusters = nclust, random_state = 123).fit(right_preimage).inertia_ for nclust in range(2,21)]
-kmeans_middle = [KMeans(n_clusters = nclust, random_state = 123).fit(middle_preimage).inertia_ for nclust in range(2,21)]
+GMM_top = [GaussianMixture(n_components = nclust, random_state = 123).fit(top_preimage).bic(top_preimage) for nclust in range(2,21)]
+GMM_left = [GaussianMixture(n_components = nclust, random_state = 123).fit(left_preimage).bic(left_preimage) for nclust in range(2,21)]
+GMM_right = [GaussianMixture(n_components = nclust, random_state = 123).fit(right_preimage).bic(right_preimage) for nclust in range(2,21)]
+GMM_middle = [GaussianMixture(n_components = nclust, random_state = 123).fit(middle_preimage).bic(middle_preimage) for nclust in range(2,21)]
 fig, axs = plt.subplots(2, 2)
-axs[0,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_top)
+axs[0,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = GMM_top)
 axs[0,0].set_xlabel('Clusters')
-axs[0,0].set_ylabel('WSS')
+axs[0,0].set_ylabel('BIC')
 axs[0,0].set_title('Top Preimage Set')
-axs[0,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_left)
+axs[0,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = GMM_left)
 axs[0,1].set_xlabel('Clusters')
-axs[0,1].set_ylabel('WSS')
+axs[0,1].set_ylabel('BIC')
 axs[0,1].set_title('Left Preimage Set')
-axs[1,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_right)
+axs[1,0].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = GMM_right)
 axs[1,0].set_xlabel('Clusters')
-axs[1,0].set_ylabel('WSS')
+axs[1,0].set_ylabel('BIC')
 axs[1,0].set_title('Right Preimage Set')
-axs[1,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = kmeans_middle)
+axs[1,1].scatter(x = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],y = GMM_middle)
 axs[1,1].set_xlabel('Clusters')
-axs[1,1].set_ylabel('WSS')
+axs[1,1].set_ylabel('BIC')
 axs[1,1].set_title('Middle Preimage Set')
 fig.tight_layout(pad=1.0)
 plt.show()
 
-# 5 clusters seems sufficient across all preimage sets (and
+# use clusters from training set and threshold on making new clusters!!
+
+# 10 clusters seems sufficient across all preimage sets (and
 # based on the small sample size of the dev set), so we'll use that
 # in mapper for the dev set analysis
 activations_dev = np.array(intermediate_output(X_dev))
