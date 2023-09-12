@@ -65,6 +65,8 @@ def spectrogram(fname, alert = None):
 # create two sample spectrograms and plot
 no_alert_spect = spectrogram(fname = "data/ESC-50-master/audio/1-137-A-32.wav", alert = None)
 alert_spect = spectrogram(fname = "data/ESC-50-master/audio/1-137-A-32.wav", alert = 'clear_low')
+urgent_alert_spect = spectrogram(fname = "data/ESC-50-master/audio/1-137-A-32.wav", alert = 'clear_urgent_low')
+high_alert_spect = spectrogram(fname = "data/ESC-50-master/audio/1-137-A-32.wav", alert = 'clear_high')
 t = 0.0026666666666666666 + 0.004666666666666666*np.arange(1071) # consistent across files
 f = 187.5*np.arange(129) # consistent across all files
 
@@ -79,3 +81,24 @@ plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
 plt.title('Alert Spectrogram')
 plt.show()
+# alert in frequency domain for about 1.5s and 1600Hz (max 2600Hz)
+
+plt.pcolormesh(t, f, urgent_alert_spect[0,:,:].T)
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Alert Spectrogram')
+plt.show()
+# alert in frequency domain for about 1.8s and 500Hz (max 1900Hz)
+
+plt.pcolormesh(t, f, high_alert_spect[0,:,:].T)
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Alert Spectrogram')
+plt.show()
+# alert in frequency domain for about 2.9s and 1800Hz (max 2600Hz)
+
+# therefore for conv networks we should have convolutions of
+# width 9 (frequency) and height 321 (time)
+# width 3 (frequency) and height 387 (time)
+# width 11 (frequency) and height 623 (time)
+# for clear and weak signals

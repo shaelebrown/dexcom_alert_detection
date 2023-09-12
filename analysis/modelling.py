@@ -442,43 +442,42 @@ history = r3.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try a convolutional model
 def convolutional_model(input_shape):
-    '''
-    A simple convolutional model with two CONV2D->RELU->MAXPOOL blocks,
-    followed by a dense layer.
-    '''
     # get input
     input_spec = tf.keras.Input(shape=input_shape)
-    # CONV2D: 8 filters 4x4, stride of 1, padding 'SAME'
-    X = tfl.Conv2D(filters = 8,kernel_size = 4,padding = 'same')(input_spec)
+    # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
     # RELU
     X = tfl.ReLU()(X)
-    # MAXPOOL: window 8x8, stride 8, padding 'SAME'
-    X = tfl.MaxPool2D(pool_size = (8,8),strides = (8,8),padding = 'same')(X)
-    # CONV2D: 8 filters 4x4, stride of 1, padding 'SAME'
-    X = tfl.Conv2D(filters = 8,kernel_size = 4,padding = 'same')(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(X)
+    # CONV2D for high alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    Y = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
     # RELU
-    X = tfl.ReLU()(X)
-    # MAXPOOL: window 8x8, stride 8, padding 'SAME'
-    X = tfl.MaxPool2D(pool_size = (8,8),strides = (8,8),padding = 'same')(X)
+    Y = tfl.ReLU()(Y)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    Y = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(Y)
+    # CONV2D for urgent low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    Z = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
+    # RELU
+    Z = tfl.ReLU()(Z)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    Z = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(Z)
+    # CONCATENATE
+    CON = tfl.Concatenate()([X,Y,Z])
+    # CONV2D
+    CON = tfl.Conv2D(filters = 6,kernel_size = (63,3),padding = 'same')(CON)
     # FLATTEN
-    X = tfl.Flatten()(X)
+    CON = tfl.Flatten()(CON)
     # Dense layer
     # 4 neurons in output layer.
-    outputs = tfl.Dense(units = 4,activation = 'softmax')(X)
+    outputs = tfl.Dense(units = 4,activation = 'softmax')(CON)
     model = tf.keras.Model(inputs=input_spec, outputs=outputs)
     return model
 
 # compile model and summarize
 conv_model = convolutional_model((1071, 129, 1)) # need extra dimension for "gray scale"
 conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
-conv_model.summary() # 2804 (trainable) params
+conv_model.summary() # 3315820 (trainable) params
 
 # train model
 history = conv_model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
-
-# print final training and dev set accuracies and dev set confusion matrix
-history.history['accuracy'][19] # about 28%
-history.history['val_accuracy'][19] # about 30%, so not great..
-tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(conv_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
-# low was predicted a lot, out of real low labels it performed well (sensitive) but otherwise not (not specific)
-# lows are pretty easy - clear low frequency same note tones
