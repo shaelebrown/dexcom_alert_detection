@@ -29,8 +29,8 @@ from scipy.stats import t
 from sklearn.decomposition import PCA
 import igraph as ig
 import time
-from sklearn.metrics import plot_confusion_matrix
-from sklearn.metrics import ConfusionMatrixDisplay
+from scipy.spatial import distance
+import math
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -121,8 +121,8 @@ plt.title('Explanation for X_dev[189,:,:]')
 plt.show()
 
 # now let's plot the confusion matrices
-predictions_dev = model(X_dev)
-predictions_train = model(X_train)
+predictions_dev = model.predict(X_dev)
+predictions_train = model.predict(X_train)
 conf_dev = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions_dev, axis = 1)).numpy() # rows are real labels, columns are predicted labels
 conf_train = tf.math.confusion_matrix(labels = np.argmax(Y_train, axis = 1),predictions = np.argmax(predictions_train, axis = 1)).numpy()
 conf_dev = conf_dev/conf_dev.sum(axis = 1, keepdims = True)
@@ -154,10 +154,9 @@ for ind in incorrect_pred_low:
 
 # what do the training predictions look like?
 # clearly they are at most 3D (p0 = 1 - (p1 + p2 + p3))
-training_predictions = model.predict(X_train)
-p_high = training_predictions[:,1]
-p_low = training_predictions[:,2]
-p_urgent_low = training_predictions[:,3]
+p_high = predictions_train[:,1]
+p_low = predictions_train[:,2]
+p_urgent_low = predictions_train[:,3]
 
 # plot prediction probability PDP's (partial dependence plots)
 fig, axs = plt.subplots(3,figsize=(7/3, 7))
@@ -213,7 +212,7 @@ del int1, int2
 
 # now we will extract the final layer activations for mapper
 intermediate_output = tf.keras.Model(model.input,model.get_layer('dense').output)
-activations = np.array(intermediate_output(X_train))
+activations = np.array(intermediate_output.predict(X_train))
 
 # subset for preimage sets
 top_preimage = activations[top_cover,:]
@@ -247,12 +246,19 @@ axs[1,1].set_title('Middle Preimage Set')
 fig.tight_layout(pad=1.0)
 plt.show()
 
-# use clusters from training set and threshold on making new clusters!!
+# it looked like the optimal #'s of clusters were
+# 9 for top
+# 10 for left
+# 5 for right, and
+# 7 for middle
+clusters_top = GaussianMixture(n_components = 9, random_state = 123).fit(top_preimage)
+clusters_left = GaussianMixture(n_components = 10, random_state = 123).fit(left_preimage)
+clusters_right = GaussianMixture(n_components = 5, random_state = 123).fit(right_preimage)
+clusters_middle = GaussianMixture(n_components = 7, random_state = 123).fit(middle_preimage)
 
-# 10 clusters seems sufficient across all preimage sets (and
-# based on the small sample size of the dev set), so we'll use that
-# in mapper for the dev set analysis
-activations_dev = np.array(intermediate_output(X_dev))
+# now we will use these clusters
+# in dev set mapper analysis
+activations_dev = np.array(intermediate_output.predict(X_dev))
 predictions_dev = model.predict(X_dev)
 p_high = predictions_dev[:,1]
 p_low = predictions_dev[:,2]
@@ -269,6 +275,20 @@ top_preimage = activations_dev[top_cover,:]
 left_preimage = activations_dev[left_cover,:]
 right_preimage = activations_dev[right_cover,:]
 middle_preimage = activations_dev[middle_cover,:]
+# predict maximum cluster probability of each data point in each preimage set
+cov_inv_top = [scipy.linalg.pinv(clusters_top.covariances_[i]) for i in range(9)]
+cov_inv_left = [scipy.linalg.pinv(clusters_left.covariances_[i]) for i in range(10)]
+cov_inv_right = [scipy.linalg.pinv(clusters_right.covariances_[i]) for i in range(5)]
+cov_inv_middle = [scipy.linalg.pinv(clusters_middle.covariances_[i]) for i in range(7)]
+det_top = [scipy.linalg.det(clusters_top.covariances_[i]) for i in range(9)]
+det_left = [scipy.linalg.det(clusters_left.covariances_[i]) for i in range(10)]
+det_right = [scipy.linalg.det(clusters_right.covariances_[i]) for i in range(5)]
+det_middle = [scipy.linalg.det(clusters_middle.covariances_[i]) for i in range(7)]
+# use 1/(sqrt(2*pi*det(cov)))*exp(-d^2/2) where d is mahalanobis distance
+clusters_top.means_.shape
+clusters_top.covariances_.shape
+scipy.linalg.pinv(clusters_top.covariances_[0]).shape
+check = clusters_top
 clustering_top = KMeans(n_clusters = 10, random_state = 123).fit(top_preimage)
 clustering_left = KMeans(n_clusters = 10, random_state = 123).fit(left_preimage)
 clustering_right = KMeans(n_clusters = 10, random_state = 123).fit(right_preimage)
