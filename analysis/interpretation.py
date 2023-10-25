@@ -11,6 +11,7 @@ import numpy as np
 from tensorflow.python.framework import ops
 import keras
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import re
 import pydub
 from pydub import AudioSegment
@@ -338,6 +339,10 @@ low_color = [rgb_to_hex(0, int(255*p_low[i]), 0) for i in range(len(p_low))]
 urgent_low_color = [rgb_to_hex(int(255*p_urgent_low[i]), 0, 0) for i in range(len(p_urgent_low))]
 p_negative = predictions_dev[:,0]
 negative_color = [rgb_to_hex(int(255*p_negative[i]), int(255*p_negative[i]), int(255*p_negative[i])) for i in range(len(p_urgent_low))]
+fourD_preds = np.vstack([p_high, p_low, p_urgent_low, p_negative]).T
+cols = ['#FF0000', '#00FF00', '#0000FF', '#FFFFFF']
+max_pred_color = np.argmax(fourD_preds, axis = 1)
+consensus_color = [cols[i] for i in max_pred_color]
 labels = ["t" + str(i) for i in range(10)] + ["l" + str(i) for i in range(10)] + ["r" + str(i) for i in range(10)] + ["m" + str(i) for i in range(10)]
 plt.clf()
 fig, ax = plt.subplots(2, 2)
@@ -349,6 +354,19 @@ ig.plot(g, target=ax[0,0], vertex_size = vertex_size, vertex_color = high_color,
 ig.plot(g, target=ax[0,1], vertex_size = vertex_size, vertex_color = negative_color, layout = layout)
 ig.plot(g, target=ax[1,0], vertex_size = vertex_size, vertex_color = low_color, layout = layout)
 ig.plot(g, target=ax[1,1], vertex_size = vertex_size, vertex_color = urgent_low_color, layout = layout)
+plt.show()
+
+# plot single graph colored by majority probability
+plt.clf()
+fig, ax = plt.subplots()
+ax.set_title('Largest class probability')
+ig.plot(g, target = ax, vertex_size = vertex_size, vertex_color = consensus_color, layout = layout)
+plt.colorbar(ax = ax)
+cmap = (mpl.colors.ListedColormap(['red', 'green', 'blue', 'white']).with_extremes(over='0.25', under='0.75'))
+bounds = [0,1,2,3,4]
+norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+cbar = fig.colorbar(mpl.cm.ScalarMappable(cmap = cmap, norm = norm),ticks = [0, 0.5, 1.5, 2.5, 3.5])
+cbar.ax.set_yticklabels(['', 'High', 'Low', 'Urgent Low', 'Negative']) 
 plt.show()
 
 # play audio clips in different vertices
