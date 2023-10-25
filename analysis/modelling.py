@@ -441,31 +441,36 @@ r3.summary()
 history = r3.fit(train_dataset, epochs = 40, validation_data = dev_dataset)
 
 # now let's try a convolutional model
+# first let's subset training and dev sets
+X_train = X_train[:,:,range(11)]
+X_dev = X_dev[:,:,range(11)]
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
 def convolutional_model(input_shape):
     # get input
     input_spec = tf.keras.Input(shape=input_shape)
     # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
-    X = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
+    X = tfl.Conv2D(filters = 4,kernel_size = (321, 1),padding = 'same')(input_spec)
     # RELU
     X = tfl.ReLU()(X)
     # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
-    X = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(X)
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
     # CONV2D for high alert: 4 filters 9x321, stride of 1, padding 'SAME'
-    Y = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
+    Y = tfl.Conv2D(filters = 4,kernel_size = (321,1),padding = 'same')(input_spec)
     # RELU
     Y = tfl.ReLU()(Y)
     # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
-    Y = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(Y)
+    Y = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(Y)
     # CONV2D for urgent low alert: 4 filters 9x321, stride of 1, padding 'SAME'
-    Z = tfl.Conv2D(filters = 4,kernel_size = (9, 321),padding = 'same')(input_spec)
+    Z = tfl.Conv2D(filters = 4,kernel_size = (321,1),padding = 'same')(input_spec)
     # RELU
     Z = tfl.ReLU()(Z)
     # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
-    Z = tfl.MaxPool2D(pool_size = (9,321),strides = (1,1),padding = 'same')(Z)
+    Z = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(Z)
     # CONCATENATE
     CON = tfl.Concatenate()([X,Y,Z])
     # CONV2D
-    CON = tfl.Conv2D(filters = 6,kernel_size = (63,3),padding = 'same')(CON)
+    CON = tfl.Conv2D(filters = 6,kernel_size = (63,1),padding = 'same')(CON)
     # FLATTEN
     CON = tfl.Flatten()(CON)
     # Dense layer
@@ -475,9 +480,113 @@ def convolutional_model(input_shape):
     return model
 
 # compile model and summarize
-conv_model = convolutional_model((1071, 129, 1)) # need extra dimension for "gray scale"
+conv_model = convolutional_model((1071, 11, 1)) # need extra dimension for "gray scale"
 conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
-conv_model.summary() # 3315820 (trainable) params
+conv_model.summary() # 12898 (trainable) params
 
 # train model
 history = conv_model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+# deeper conv model
+def deep_conv_model(input_shape):
+    # get input
+    input_spec = tf.keras.Input(shape=input_shape)
+    # CONV2D
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(input_spec)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(X)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(X)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    F = tfl.Flatten()(X)
+    # Dense layers
+    F = tfl.Dense(128,'tanh')(F)
+    outputs = tfl.Dense(units = 4,activation = 'softmax')(F)
+    model = tf.keras.Model(inputs=input_spec, outputs=outputs)
+    return model
+
+deep_cnn = deep_conv_model((1071, 11, 1))
+deep_cnn.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+deep_cnn.summary()
+history = deep_cnn.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+# adding more FC layers
+def deeper_conv_model(input_shape):
+    # get input
+    input_spec = tf.keras.Input(shape=input_shape)
+    # CONV2D
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(input_spec)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(X)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    # CONV2D for low alert: 4 filters 9x321, stride of 1, padding 'SAME'
+    X = tfl.Conv2D(filters = 12,kernel_size = (321, 1),padding = 'same')(X)
+    # RELU
+    X = tfl.ReLU()(X)
+    # MAXPOOL: window 9x321, stride 1x35, padding 'SAME'
+    X = tfl.MaxPool2D(pool_size = (321,1),strides = (63,1),padding = 'same')(X)
+    F = tfl.Flatten()(X)
+    # Dense layers
+    F = tfl.Dense(128,'tanh')(F)
+    F = tfl.Dense(64,'tanh')(F)
+    F = tfl.Dense(32,'tanh')(F)
+    F = tfl.Dense(16,'tanh')(F)
+    F = tfl.Dense(8,'tanh')(F)
+    outputs = tfl.Dense(units = 4,activation = 'softmax')(F)
+    model = tf.keras.Model(inputs=input_spec, outputs=outputs)
+    return model
+
+deeper_cnn = deeper_conv_model((1071, 11, 1))
+deeper_cnn.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+deeper_cnn.summary()
+history = deeper_cnn.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+# best model but on subsetted data
+def bi512_2D_sub(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+bi_sub = bi512_2D_sub((1071, 11))
+bi_sub.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
+bi_sub.summary() # 2,278,020 params
+history = bi_sub.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
+
+# how about with more dense layers
+def bi512_2D_sub_deep(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    X = tfl.Dense(64, activation = 'tanh')(X)
+    X = tfl.Dense(32, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+mod = bi512_2D_sub_deep((1071, 11))
+mod.compile(loss = 'categorical_crossentropy', optimizer = 'adam', metrics = ['accuracy'])
+mod.summary() # 2,287,972 parameters
+
+history = mod.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
+
