@@ -32,6 +32,8 @@ import igraph as ig
 import time
 from scipy.spatial import distance
 import math
+from mpl_toolkits.mplot3d import Axes3D
+import kmapper as km
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -158,6 +160,25 @@ for ind in incorrect_pred_low:
 p_high = predictions_train[:,1]
 p_low = predictions_train[:,2]
 p_urgent_low = predictions_train[:,3]
+
+# plot in 3D (4D not necessary due to linear dependence)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(p_high, p_low, p_urgent_low, color='green')
+ax.set_xlabel('Prob High')
+ax.set_ylabel('Prob Low')
+ax.set_zlabel('Prob Urgent Low')
+plt.show()
+
+# plot mapper of predictions
+# figure out how to do this with density lens function! in place of projected_data
+data = np.vstack([p_high, p_low, p_urgent_low]).T
+mapper = km.KeplerMapper(verbose = 1)
+projected_data = mapper.fit_transform(data, projection = 'knn_distance_5') # 3-NN distance
+cover = km.Cover(n_cubes = 10)
+graph = mapper.map(projected_data, data, cover = cover)
+graph['links'] # gives graph edges
+mapper.visualize(graph, title = "Model predictions")
 
 # plot prediction probability PDP's (partial dependence plots)
 fig, axs = plt.subplots(3,figsize=(7/3, 7))
