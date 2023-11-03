@@ -17,6 +17,7 @@ import tensorflow as tf
 import tensorflow.keras.layers as tfl
 from tensorflow.python.framework import ops
 from keras.regularizers import l2
+import keras
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -70,6 +71,8 @@ def spectrogram(fname, alert = None, index = 0, type = 'train'):
     _, _, Sxx= signal.spectrogram(x_value,sr_value) # compute spectrogram with scipy
     Sxx = Sxx.swapaxes(0,1) # format to have correct axes and dimensions
     Sxx = np.expand_dims(Sxx, axis = 0)
+    if type == 'gen':
+        os.remove(fname)
     return Sxx
 
 # function to create training, dev and test datasets
@@ -125,6 +128,69 @@ def generate_data():
     dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
     return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
+# function to create larger training, dev and test datasets
+def generate_larger_data():
+    # splitting data into train, test and dev sets
+    fnames = os.listdir('data/ESC-50-master/audio')
+    # generate 7 data frames of spectrograms, one for each output type, then
+    # split into train, dev and test sets
+    clear_high_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    unclear_high_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    clear_low_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    unclear_low_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    clear_urgent_low_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    unclear_urgent_low_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low', type = 'gen', index = fnames.index(f)) for f in random.sample(fnames, k = 1000)],axis = 0)
+    negative_df = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, type = 'gen', index = fnames.index(f)) for f in fnames],axis = 0)
+    train_clear_high, subset_clear_high = train_test_split(clear_high_df, test_size = 0.2, random_state = 123)
+    dev_clear_high, test_clear_high = train_test_split(subset_clear_high, test_size = 0.5, random_state = 123)
+    del subset_clear_high
+    train_unclear_high, subset_unclear_high = train_test_split(unclear_high_df, test_size = 0.2, random_state = 123)
+    dev_unclear_high, test_unclear_high = train_test_split(subset_unclear_high, test_size = 0.5, random_state = 123)
+    del subset_unclear_high
+    train_clear_low, subset_clear_low = train_test_split(clear_low_df, test_size = 0.2, random_state = 123)
+    dev_clear_low, test_clear_low = train_test_split(subset_clear_low, test_size = 0.5, random_state = 123)
+    del subset_clear_low
+    train_unclear_low, subset_unclear_low = train_test_split(unclear_low_df, test_size = 0.2, random_state = 123)
+    dev_unclear_low, test_unclear_low = train_test_split(subset_unclear_low, test_size = 0.5, random_state = 123)
+    del subset_unclear_low
+    train_clear_urgent_low, subset_clear_urgent_low = train_test_split(clear_urgent_low_df, test_size = 0.2, random_state = 123)
+    dev_clear_urgent_low, test_clear_urgent_low = train_test_split(subset_clear_urgent_low, test_size = 0.5, random_state = 123)
+    del subset_clear_urgent_low
+    train_unclear_urgent_low, subset_unclear_urgent_low = train_test_split(unclear_urgent_low_df, test_size = 0.2, random_state = 123)
+    dev_unclear_urgent_low, test_unclear_urgent_low = train_test_split(subset_unclear_urgent_low, test_size = 0.5, random_state = 123)
+    del subset_unclear_urgent_low
+    train_negative, subset_negative = train_test_split(negative_df, test_size = 0.2, random_state = 123)
+    dev_negative, test_negative= train_test_split(subset_negative, test_size = 0.5, random_state = 123)
+    del subset_negative
+    train_high = np.concatenate([train_clear_high, train_unclear_high], axis = 0)
+    train_low = np.concatenate([train_clear_low, train_unclear_low], axis = 0)
+    train_urgent_low = np.concatenate([train_clear_urgent_low, train_unclear_urgent_low], axis = 0)
+    dev_high = np.concatenate([dev_clear_high, dev_unclear_high], axis = 0)
+    dev_low = np.concatenate([dev_clear_low, dev_unclear_low], axis = 0)
+    dev_urgent_low = np.concatenate([dev_clear_urgent_low, dev_unclear_urgent_low], axis = 0)
+    test_high = np.concatenate([test_clear_high, test_unclear_high], axis = 0)
+    test_low = np.concatenate([test_clear_low, test_unclear_low], axis = 0)
+    test_urgent_low = np.concatenate([test_clear_urgent_low, test_unclear_urgent_low], axis = 0)
+    # combine into train, test and dev sets for features and labels
+    X_train = np.concatenate([train_negative, train_high, train_low, train_urgent_low], axis = 0)
+    X_dev = np.concatenate([dev_negative, dev_high, dev_low, dev_urgent_low], axis = 0)
+    X_test = np.concatenate([test_negative, test_high, test_low, test_urgent_low], axis = 0)
+    del train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low
+    del dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low
+    del test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low
+    # labels are one-hot encoded vectors from 4 classes
+    negative = np.array([1,0,0,0]).reshape((1,4))
+    high = np.array([0,1,0,0]).reshape((1,4))
+    low = np.array([0,0,1,0]).reshape((1,4))
+    urgent_low = np.array([0,0,0,1]).reshape((1,4))
+    Y_train = np.concatenate([negative for x in range(1600)] + [high for x in range(1600)] + [low for x in range(1600)] + [urgent_low for x in range(1600)],axis = 0)
+    Y_dev = np.concatenate([negative for x in range(200)] + [high for x in range(200)] + [low for x in range(200)] + [urgent_low for x in range(200)],axis = 0)
+    Y_test = np.concatenate([negative for x in range(200)] + [high for x in range(200)] + [low for x in range(200)] + [urgent_low for x in range(200)],axis = 0)
+    # split into batches for training speed
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
+    dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+    return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
+
 # generate data and save
 train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_data()
 np.savetxt('data/modelling/train.txt', X_train.reshape(X_train.shape[0], -1))
@@ -134,11 +200,16 @@ np.savetxt('data/modelling/test.txt', X_test.reshape(X_test.shape[0], -1))
 # current best model
 def bi512_2D(input_shape):
     input_spec = tf.keras.Input(shape = input_shape)
-    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False))(input_spec)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.1))(input_spec)
     X = tfl.Dense(128, activation = 'tanh')(X)
     outputs = tfl.Dense(4, activation = 'softmax')(X)
     model = tf.keras.Model(inputs = input_spec, outputs = outputs)
     return model
+
+# read in old best model to fine-tune
+model = keras.models.load_model('analysis/model.keras')
+model.compile(optimizer = tf.keras.optimizers.AdamW(), loss = 'categorical_crossentropy', metrics = ['accuracy'])
+history = model.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
 
 bi_2D = bi512_2D((1071, 129))
 bi_2D.compile(optimizer = 'adam', loss = 'categorical_crossentropy', metrics = ['accuracy'])
