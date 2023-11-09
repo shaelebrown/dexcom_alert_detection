@@ -76,6 +76,7 @@ def spectrogram(fname, alert = None, index = 0, type = 'train'):
     return Sxx
 
 # function to create training, dev and test datasets
+# this function is old
 def generate_data():
     # splitting data into train, test and dev sets
     fnames = os.listdir('data/ESC-50-master/audio')
@@ -191,11 +192,8 @@ def generate_larger_data():
     dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
     return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
-# generate data and save
+# generate data
 train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_larger_data()
-np.savetxt('data/modelling/train.txt', X_train.reshape(X_train.shape[0], -1))
-np.savetxt('data/modelling/dev.txt', X_dev.reshape(X_dev.shape[0], -1))
-np.savetxt('data/modelling/test.txt', X_test.reshape(X_test.shape[0], -1))
 
 # current best model
 def bi512_2D(input_shape):
