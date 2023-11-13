@@ -193,7 +193,7 @@ def generate_larger_data():
     return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
 # generate data
-train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_larger_data()
+train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_data()
 
 # current best model
 def bi512_2D(input_shape):
@@ -659,3 +659,98 @@ mod.summary() # 2,287,972 parameters
 
 history = mod.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
 
+# current best model but with RSA loss function and multireturn
+def RSA_512(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.1))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = [X, outputs])
+    return model
+
+# read in old best model to fine-tune
+model = RSA_512((1071, 129))
+
+from keras import backend as K
+
+def correlation_distance(X, Y):
+    epsilon = 1e-9
+    x = tf.reshape(X, (1, ))
+    y = tf.reshape(Y, (1, ))
+    mx = K.mean(x)
+    my = K.mean(y)
+    xm, ym = x - mx, y - my
+    r_num = K.sum(xm * ym)
+    x_square_sum = K.sum(xm * xm)
+    y_square_sum = K.sum(ym * ym)
+    r_den = K.sqrt(x_square_sum * y_square_sum)
+    r = r_num / (r_den + epsilon)
+    return 1 - K.mean(r)
+
+def distance_matrix(X):
+    r = tf.reshape(tf.reduce_sum(X*X, 1),(1, tf.shape(X)[0].numpy()))
+    r = tf.tile(r, [tf.shape(X)[0].numpy(), 1])
+    D = tf.sqrt(r - 2*tf.matmul(X, tf.transpose(X)) + tf.transpose(r)) 
+    return D
+
+train_acc_metric = tf.keras.metrics.Accuracy()
+val_acc_metric = tf.keras.metrics.Accuracy()
+loss_fn = tf.keras.losses.categorical_crossentropy
+optimizer = tf.keras.optimizers.Adam()
+
+training_RDM = np.zeros((1600, 1600))
+training_RDM[range(400)][:,range(400,1600)] = 1
+training_RDM[range(400,1600)][:,range(400)] = 1
+training_RDM[range(400, 800)][:,list(range(400)) + list(range(800, 1600))] = 1
+training_RDM[list(range(400)) + list(range(800, 1600))][:,range(400, 800)] = 1
+training_RDM[range(800, 1200)][:,list(range(800)) + list(range(1200, 1600))] = 1
+training_RDM[list(range(800)) + list(range(1200, 1600))][:,range(800, 1200)] = 1
+training_RDM[range(1200, 1600)][:,range(1200)] = 1
+training_RDM[range(1200)][:,range(1200, 1600)] = 1
+training_RDM = tf.constant(training_RDM)
+
+def apply_gradient(optimizer, model, x, y):
+  lambd = 0.5 # can set to parameter later!
+  with tf.GradientTape() as tape:
+    activations, logits = model(x)
+    D = distance_matrix(activations)
+    loss_value = lambd*loss_fn(y_true=y, y_pred=logits) + (1-lambd)*correlation_distance(D, training_RDM)
+  
+  gradients = tape.gradient(loss_value, model.trainable_weights)
+  optimizer.apply_gradients(zip(gradients, model.trainable_weights))
+  
+  return logits, loss_value
+
+def train_data_for_one_epoch():
+  losses = []
+  for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
+      logits, loss_value = apply_gradient(optimizer, model, x_batch_train, y_batch_train)
+      losses.append(loss_value)
+      train_acc_metric(y_batch_train, logits)
+  return losses
+
+def perform_validation():
+  losses = []
+  for x_val, y_val in dev_dataset:
+      val_logits = model(x_val)
+      val_loss = loss_fn(y_true=y_val, y_pred=val_logits)
+      losses.append(val_loss)
+      val_acc_metric(y_val, val_logits)
+  return losses
+
+# Iterate over epochs.
+epochs = 10
+epochs_val_losses, epochs_train_losses = [], []
+for epoch in range(epochs):
+  print('Start of epoch %d' % (epoch,))
+  losses_train = train_data_for_one_epoch()
+  train_acc = train_acc_metric.result()
+  losses_val = perform_validation()
+  val_acc = val_acc_metric.result()
+  losses_train_mean = np.mean(losses_train)
+  losses_val_mean = np.mean(losses_val)
+  epochs_val_losses.append(losses_val_mean)
+  epochs_train_losses.append(losses_train_mean)
+  print('\n Epoch %s: Train loss: %.4f  Validation Loss: %.4f, Train Accuracy: %.4f, Validation Accuracy %.4f' % (epoch, float(losses_train_mean), float(losses_val_mean), float(train_acc), float(val_acc)))
+  train_acc_metric.reset_states()
+  val_acc_metric.reset_states()
