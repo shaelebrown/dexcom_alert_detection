@@ -18,6 +18,7 @@ import tensorflow.keras.layers as tfl
 from tensorflow.python.framework import ops
 from keras.regularizers import l2
 import keras
+from keras import backend as K
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -671,12 +672,18 @@ def RSA_512(input_shape):
 # read in old best model to fine-tune
 model = RSA_512((1071, 129))
 
-from keras import backend as K
-
-def correlation_distance(X, Y):
+def correlation_distance(x, y_batch):
     epsilon = 1e-9
-    x = tf.reshape(X, (1, ))
-    y = tf.reshape(Y, (1, ))
+    y_batch = np.argmax(y_batch,axis = 1)
+    y_tens_sq = np.zeros(shape = (len(y_batch),len(y_batch)))
+    for i in range(len(y_batch)-1):
+        for j in range(i+1,len(y_batch)):
+            if y_batch[i] != y_batch[j]:
+                y_tens_sq[i,j] = 1
+                y_tens_sq[j,i] = 1
+    y_tens_sq = tf.Variable(y_tens_sq,dtype = tf.float32)
+    indices = tf.transpose(tf.Variable(np.triu_indices(y_tens_sq.shape[0], k = 1)))
+    y = tf.gather_nd(y_tens_sq, indices = indices)
     mx = K.mean(x)
     my = K.mean(y)
     xm, ym = x - mx, y - my
@@ -689,32 +696,25 @@ def correlation_distance(X, Y):
 
 def distance_matrix(X):
     r = tf.reshape(tf.reduce_sum(X*X, 1),(1, tf.shape(X)[0].numpy()))
-    r = tf.tile(r, [tf.shape(X)[0].numpy(), 1])
-    D = tf.sqrt(r - 2*tf.matmul(X, tf.transpose(X)) + tf.transpose(r)) 
-    return D
+    r2 = tf.tile(r, [tf.shape(X)[0].numpy(), 1])
+    D = tf.sqrt(r2 - 2*tf.matmul(X, tf.transpose(X)) + tf.transpose(r2)) 
+    indices = tf.transpose(tf.Variable(np.triu_indices(D.shape[0], k = 1)))
+    upper = tf.gather_nd(D, indices = indices)
+    return upper
 
 train_acc_metric = tf.keras.metrics.Accuracy()
 val_acc_metric = tf.keras.metrics.Accuracy()
 loss_fn = tf.keras.losses.categorical_crossentropy
 optimizer = tf.keras.optimizers.Adam()
 
-training_RDM = np.zeros((1600, 1600))
-training_RDM[range(400)][:,range(400,1600)] = 1
-training_RDM[range(400,1600)][:,range(400)] = 1
-training_RDM[range(400, 800)][:,list(range(400)) + list(range(800, 1600))] = 1
-training_RDM[list(range(400)) + list(range(800, 1600))][:,range(400, 800)] = 1
-training_RDM[range(800, 1200)][:,list(range(800)) + list(range(1200, 1600))] = 1
-training_RDM[list(range(800)) + list(range(1200, 1600))][:,range(800, 1200)] = 1
-training_RDM[range(1200, 1600)][:,range(1200)] = 1
-training_RDM[range(1200)][:,range(1200, 1600)] = 1
-training_RDM = tf.constant(training_RDM)
-
 def apply_gradient(optimizer, model, x, y):
   lambd = 0.5 # can set to parameter later!
   with tf.GradientTape() as tape:
     activations, logits = model(x)
     D = distance_matrix(activations)
-    loss_value = lambd*loss_fn(y_true=y, y_pred=logits) + (1-lambd)*correlation_distance(D, training_RDM)
+    entropy_term = lambd*loss_fn(y_true=y, y_pred=logits)
+    RSA_term = (1-lambd)*correlation_distance(D, y)*np.ones((x.shape[0],))
+    loss_value =  entropy_term + RSA_term
   
   gradients = tape.gradient(loss_value, model.trainable_weights)
   optimizer.apply_gradients(zip(gradients, model.trainable_weights))
@@ -727,12 +727,13 @@ def train_data_for_one_epoch():
       logits, loss_value = apply_gradient(optimizer, model, x_batch_train, y_batch_train)
       losses.append(loss_value)
       train_acc_metric(y_batch_train, logits)
+      tf.print('Finished batch')
   return losses
 
 def perform_validation():
   losses = []
   for x_val, y_val in dev_dataset:
-      val_logits = model(x_val)
+      _, val_logits = model(x_val)
       val_loss = loss_fn(y_true=y_val, y_pred=val_logits)
       losses.append(val_loss)
       val_acc_metric(y_val, val_logits)
