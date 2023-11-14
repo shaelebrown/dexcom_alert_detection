@@ -126,8 +126,8 @@ def generate_data():
     Y_dev = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
     Y_test = np.concatenate([negative for x in range(50)] + [high for x in range(50)] + [low for x in range(50)] + [urgent_low for x in range(50)],axis = 0)
     # split into batches for training speed
-    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(64)
-    dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(64)
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(50)
+    dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(50)
     return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
 
 # function to create larger training, dev and test datasets
@@ -697,13 +697,13 @@ def correlation_distance(x, y_batch):
 def distance_matrix(X):
     r = tf.reshape(tf.reduce_sum(X*X, 1),(1, tf.shape(X)[0].numpy()))
     r2 = tf.tile(r, [tf.shape(X)[0].numpy(), 1])
-    D = tf.sqrt(r2 - 2*tf.matmul(X, tf.transpose(X)) + tf.transpose(r2)) 
+    D = tf.sqrt(tf.math.maximum(0.0,r2 - 2*tf.matmul(X, tf.transpose(X)) + tf.transpose(r2)))
     indices = tf.transpose(tf.Variable(np.triu_indices(D.shape[0], k = 1)))
     upper = tf.gather_nd(D, indices = indices)
     return upper
 
-train_acc_metric = tf.keras.metrics.Accuracy()
-val_acc_metric = tf.keras.metrics.Accuracy()
+train_acc_metric = tf.keras.metrics.CategoricalAccuracy()
+val_acc_metric = tf.keras.metrics.CategoricalAccuracy()
 loss_fn = tf.keras.losses.categorical_crossentropy
 optimizer = tf.keras.optimizers.Adam()
 
@@ -726,17 +726,21 @@ def train_data_for_one_epoch():
   for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
       logits, loss_value = apply_gradient(optimizer, model, x_batch_train, y_batch_train)
       losses.append(loss_value)
-      train_acc_metric(y_batch_train, logits)
+      train_acc_metric.update_state(y_batch_train, logits)
       tf.print('Finished batch')
   return losses
 
 def perform_validation():
   losses = []
-  for x_val, y_val in dev_dataset:
-      _, val_logits = model(x_val)
-      val_loss = loss_fn(y_true=y_val, y_pred=val_logits)
-      losses.append(val_loss)
-      val_acc_metric(y_val, val_logits)
+  lambd = 0.5
+  for step, (x_batch_dev, y_batch_dev) in enumerate(dev_dataset):
+        activations, logits = model(x_batch_dev)
+        D = distance_matrix(activations)
+        entropy_term = lambd*loss_fn(y_true=y_batch_dev, y_pred=logits)
+        RSA_term = (1-lambd)*correlation_distance(D, y_batch_dev)*np.ones((x_batch_dev.shape[0],))
+        loss_value =  entropy_term + RSA_term
+        losses.append(loss_value)
+        val_acc_metric.update_state(y_batch_dev, logits)
   return losses
 
 # Iterate over epochs.
