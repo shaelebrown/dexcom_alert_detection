@@ -707,8 +707,7 @@ val_acc_metric = tf.keras.metrics.CategoricalAccuracy()
 loss_fn = tf.keras.losses.categorical_crossentropy
 optimizer = tf.keras.optimizers.Adam()
 
-def apply_gradient(optimizer, model, x, y):
-  lambd = 0.5 # can set to parameter later!
+def apply_gradient(optimizer, model, x, y, lambd):
   with tf.GradientTape() as tape:
     activations, logits = model(x)
     D = distance_matrix(activations)
@@ -724,7 +723,7 @@ def apply_gradient(optimizer, model, x, y):
 def train_data_for_one_epoch():
   losses = []
   for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
-      logits, loss_value = apply_gradient(optimizer, model, x_batch_train, y_batch_train)
+      logits, loss_value = apply_gradient(optimizer, model, x_batch_train, y_batch_train, lambd)
       losses.append(loss_value)
       train_acc_metric.update_state(y_batch_train, logits)
       tf.print('Finished batch')
@@ -732,7 +731,6 @@ def train_data_for_one_epoch():
 
 def perform_validation():
   losses = []
-  lambd = 0.5
   for step, (x_batch_dev, y_batch_dev) in enumerate(dev_dataset):
         activations, logits = model(x_batch_dev)
         D = distance_matrix(activations)
@@ -744,13 +742,138 @@ def perform_validation():
   return losses
 
 # Iterate over epochs.
-epochs = 10
+epochs = 40
 epochs_val_losses, epochs_train_losses = [], []
+lambd = 0.001
 for epoch in range(epochs):
   print('Start of epoch %d' % (epoch,))
   losses_train = train_data_for_one_epoch()
   train_acc = train_acc_metric.result()
   losses_val = perform_validation()
+  val_acc = val_acc_metric.result()
+  losses_train_mean = np.mean(losses_train)
+  losses_val_mean = np.mean(losses_val)
+  epochs_val_losses.append(losses_val_mean)
+  epochs_train_losses.append(losses_train_mean)
+  print('\n Epoch %s: Train loss: %.4f  Validation Loss: %.4f, Train Accuracy: %.4f, Validation Accuracy %.4f' % (epoch, float(losses_train_mean), float(losses_val_mean), float(train_acc), float(val_acc)))
+  train_acc_metric.reset_states()
+  val_acc_metric.reset_states()
+
+# current best model
+def best_model(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.1))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+model = best_model((1071, 129))
+
+train_acc_metric = tf.keras.metrics.CategoricalAccuracy()
+val_acc_metric = tf.keras.metrics.CategoricalAccuracy()
+loss_fn = tf.keras.losses.categorical_crossentropy
+optimizer = tf.keras.optimizers.Adam()
+
+def apply_gradient_pre20(optimizer, model, x, y):
+  with tf.GradientTape() as tape:
+    logits = model(x)
+    loss_value = loss_fn(y_true=y, y_pred=logits)
+  
+  gradients = tape.gradient(loss_value, model.trainable_weights)
+  optimizer.apply_gradients(zip(gradients, model.trainable_weights))
+  
+  return logits, loss_value
+
+def apply_gradient_post20(optimizer, model, x, y):
+  with tf.GradientTape() as tape:
+    logits = model(x)
+    reg_term0 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[0]))
+    reg_term1 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[1]))
+    reg_term2 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[2]))
+    reg_term3 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[3]))
+    reg_term4 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[4]))
+    reg_term5 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[5]))
+    reg_term6 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[6]))
+    reg_term7 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[7]))
+    reg_term8 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[8]))
+    reg_term9 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[9]))
+    reg_term = tf.math.add_n([reg_term0, reg_term1, reg_term2, reg_term3, reg_term4, reg_term5, reg_term6, reg_term7, reg_term8, reg_term9])
+    entropy_term = loss_fn(y_true=y, y_pred=logits)
+    loss_value = (1-lambd)*entropy_term + lambd*reg_term
+  
+  gradients = tape.gradient(loss_value, model.trainable_weights)
+  optimizer.apply_gradients(zip(gradients, model.trainable_weights))
+  
+  return logits, loss_value
+
+def train_data_for_one_epoch_pre20():
+  losses = []
+  for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
+      logits, loss_value = apply_gradient_pre20(optimizer, model, x_batch_train, y_batch_train)
+      losses.append(loss_value)
+      train_acc_metric.update_state(y_batch_train, logits)
+  return losses
+
+def train_data_for_one_epoch_post20():
+  losses = []
+  for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
+      logits, loss_value = apply_gradient_pre30(optimizer, model, x_batch_train, y_batch_train)
+      losses.append(loss_value)
+      train_acc_metric.update_state(y_batch_train, logits)
+  return losses
+
+def perform_validation_pre20():
+  losses = []
+  for step, (x_batch_dev, y_batch_dev) in enumerate(dev_dataset):
+        logits = model(x_batch_dev)
+        loss_value = loss_fn(y_true=y_batch_dev, y_pred=logits)
+        losses.append(loss_value)
+        val_acc_metric.update_state(y_batch_dev, logits)
+  return losses
+
+def perform_validation_post20():
+  losses = []
+  for step, (x_batch_dev, y_batch_dev) in enumerate(dev_dataset):
+        logits = model(x_batch_dev)
+        reg_term0 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[0]))
+        reg_term1 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[1]))
+        reg_term2 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[2]))
+        reg_term3 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[3]))
+        reg_term4 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[4]))
+        reg_term5 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[5]))
+        reg_term6 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[6]))
+        reg_term7 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[7]))
+        reg_term8 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[8]))
+        reg_term9 = tf.math.reduce_sum(tf.math.square(model.trainable_weights[9]))
+        reg_term = tf.math.add_n([reg_term0, reg_term1, reg_term2, reg_term3, reg_term4, reg_term5, reg_term6, reg_term7, reg_term8, reg_term9])
+        entropy_term = loss_fn(y_true=y_batch_dev, y_pred=logits)
+        loss_value = (1-lambd)*entropy_term + lambd*reg_term
+        losses.append(loss_value)
+        val_acc_metric.update_state(y_batch_dev, logits)
+  return losses
+
+# Iterate over epochs.
+# After epoch 20, add regularization
+# After epoch 30, decrease learning rate
+epochs = 40
+epochs_val_losses, epochs_train_losses = [], []
+lambd = 1000/2*(2761348 ** 2)
+for epoch in range(epochs):
+  print('Start of epoch %d' % (epoch,))
+  if epoch < 20:
+    losses_train = train_data_for_one_epoch_pre20()
+  else:
+    if epoch == 20 or epoch == 30:
+      old_lr = optimizer.lr.read_value()
+      new_lr = 0.1*old_lr
+      optimizer.lr.assign(new_lr)
+    losses_train = train_data_for_one_epoch_post20()
+  train_acc = train_acc_metric.result()
+  if epoch < 20:
+     losses_val = perform_validation_pre20()
+  else:
+     losses_val = perform_validation_post20()
   val_acc = val_acc_metric.result()
   losses_train_mean = np.mean(losses_train)
   losses_val_mean = np.mean(losses_val)
