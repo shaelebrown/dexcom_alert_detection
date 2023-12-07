@@ -773,6 +773,14 @@ model = best_model((1071, 129))
 train_acc_metric = tf.keras.metrics.CategoricalAccuracy()
 val_acc_metric = tf.keras.metrics.CategoricalAccuracy()
 loss_fn = tf.keras.losses.categorical_crossentropy
+def weighted_loss_fun(y_true, y_pred):
+   num_in_batch = y_pred.shape[0]
+   relative_weights = np.array([1, 2, 3, 4]) # negative, high, low, urgent low
+   counts = np.sum(y_true, 0)
+   dot_prod = np.sum(counts*relative_weights)
+   adjusted_weights = relative_weights/dot_prod
+   sample_weights = adjusted_weights[np.argmax(y_true, axis = 1)]
+   return loss_fn(y_true = y_true, y_pred = y_pred, sample_weight = sample_weights)
 optimizer = tf.keras.optimizers.Adam()
 
 def apply_gradient_pre20(optimizer, model, x, y):
@@ -818,7 +826,7 @@ def train_data_for_one_epoch_pre20():
 def train_data_for_one_epoch_post20():
   losses = []
   for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
-      logits, loss_value = apply_gradient_pre30(optimizer, model, x_batch_train, y_batch_train)
+      logits, loss_value = apply_gradient_post20(optimizer, model, x_batch_train, y_batch_train)
       losses.append(loss_value)
       train_acc_metric.update_state(y_batch_train, logits)
   return losses
@@ -882,3 +890,26 @@ for epoch in range(epochs):
   print('\n Epoch %s: Train loss: %.4f  Validation Loss: %.4f, Train Accuracy: %.4f, Validation Accuracy %.4f' % (epoch, float(losses_train_mean), float(losses_val_mean), float(train_acc), float(val_acc)))
   train_acc_metric.reset_states()
   val_acc_metric.reset_states()
+
+# current best model
+def best_model(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.1))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+
+model = best_model((1071, 129))
+
+loss_fn = tf.keras.losses.CategoricalCrossentropy()
+def weighted_loss_fun(y_true, y_pred):
+   num_in_batch = y_pred.shape[0]
+   relative_weights = np.array([1, 2, 3, 4]) # negative, high, low, urgent low
+   counts = np.sum(y_true, 0)
+   dot_prod = np.sum(counts*relative_weights)
+   adjusted_weights = relative_weights/dot_prod
+   sample_weight = adjusted_weights[np.argmax(y_true, axis = 1)]
+   return loss_fn(y_true = y_true, y_pred = y_pred, sample_weight = sample_weight)
+model.compile(optimizer = 'adam', loss = weighted_loss_fun, metrics = ['accuracy'])
+history = model.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
