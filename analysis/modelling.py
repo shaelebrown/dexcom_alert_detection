@@ -905,11 +905,10 @@ model = best_model((1071, 129))
 loss_fn = tf.keras.losses.CategoricalCrossentropy()
 def weighted_loss_fun(y_true, y_pred):
    num_in_batch = y_pred.shape[0]
-   relative_weights = np.array([1, 2, 3, 4]) # negative, high, low, urgent low
-   counts = np.sum(y_true, 0)
-   dot_prod = np.sum(counts*relative_weights)
-   adjusted_weights = relative_weights/dot_prod
-   sample_weight = adjusted_weights[np.argmax(y_true, axis = 1)]
+   relative_weights = tf.constant([1, 2, 3, 4], dtype = tf.int64, shape = (1, 4)) # negative, high, low, urgent low
+   counts = tf.reduce_sum(y_true, 0)
+   dot_prod = tf.reduce_sum(counts*relative_weights)
+   sample_weight = tf.matmul(y_true, tf.transpose(relative_weights))/dot_prod
    return loss_fn(y_true = y_true, y_pred = y_pred, sample_weight = sample_weight)
 model.compile(optimizer = 'adam', loss = weighted_loss_fun, metrics = ['accuracy'])
 history = model.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
