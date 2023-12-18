@@ -912,3 +912,30 @@ def weighted_loss_fun(y_true, y_pred):
    return loss_fn(y_true = y_true, y_pred = y_pred, sample_weight = sample_weight)
 model.compile(optimizer = 'adam', loss = weighted_loss_fun, metrics = ['accuracy'])
 history = model.fit(train_dataset, epochs = 20, validation_data = dev_dataset)
+
+# trying again with conv models on subsetted spectrograms
+X_train = X_train[:,:,range(16)]
+X_dev = X_dev[:,:,range(16)]
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(50)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(50)
+def conv(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 8,kernel_size = (643, 2),padding = 'same',strides = (10, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (108,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.Conv2D(filters = 16,kernel_size = (10, 2),padding = 'same',strides = (10, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (10,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.Conv2D(filters = 32,kernel_size = (11, 2),strides = (1, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (1,2),strides = (1,1))(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+conv_model = conv((1071,16,1))
+conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+conv_model.summary()
+history = conv_model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+# not bad only gets to about 50% accuracy (train and dev)
+# could try with last kernel_size = (11, 2) and last pool size = (1, 1) to basically flatten
+# out the time dimension of the inputs

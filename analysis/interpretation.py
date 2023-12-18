@@ -88,6 +88,45 @@ os.remove(fname)
 np.array_equal(model.predict(Sxx),prediction) # yup exactly the same prediction values
 del Sxx, fname, instance, sr_value, x_value, unclear_alerts, unclear_urgent_low
 
+plt.pcolormesh(range(16), range(1071), X_train[0,:,range(16)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Negative example')
+plt.show()
+
+plt.pcolormesh(range(16), range(1071), X_train[500,:,range(16)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('High example')
+plt.show()
+
+plt.pcolormesh(range(16), range(1071), X_train[800,:,range(16)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Low example')
+plt.show()
+
+plt.pcolormesh(range(16), range(1071), X_train[1200,:,range(16)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Urgent low example')
+plt.show()
+
+# length for each alert:
+# high: 3s
+# low: 2s
+# urgent low: 2.5s
+# clip length was 5s, so each time step was 5/1071 = 0.00467s
+# so each alert in time steps is:
+# high: 643
+# low: 429
+# urgent low: 536
+
+# frequency range for each alert:
+# high: 2
+# low: 2
+# urgent_low: 3
+
 # let's see why the model thought the prediction was negative
 # this took about 27 mins for me...
 exp = explainer.explain_instance(
