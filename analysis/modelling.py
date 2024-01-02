@@ -996,10 +996,10 @@ def conv_bn(input_shape):
    X = tfl.Flatten()(X)
    output = tfl.Dense(4,activation = 'softmax')(X)
    return tf.keras.Model(inputs = input_spec,outputs = output)
-conv_model = conv_bn((1071,16,1))
-conv_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
-conv_model.summary()
-history = conv_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+model1 = conv_bn((1071,16,1))
+model1.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model1.summary()
+history = model1.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 # best!! 100% train accuracy and 65% dev accuracy
 
 def conv_bn_drop(input_shape):
@@ -1020,10 +1020,10 @@ def conv_bn_drop(input_shape):
    X = tfl.Dropout(rate = 0.1)(X)
    output = tfl.Dense(4,activation = 'softmax')(X)
    return tf.keras.Model(inputs = input_spec,outputs = output)
-model = conv_bn_drop((1071,16,1))
-model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
-model.summary()
-history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+model2 = conv_bn_drop((1071,16,1))
+model2.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model2.summary()
+history = model2.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 # best!! 100% train accuracy, 70% dev accuracy
 
 def conv_bn_more_drop(input_shape):
@@ -1046,10 +1046,10 @@ def conv_bn_more_drop(input_shape):
    X = tfl.Flatten()(X)
    output = tfl.Dense(4,activation = 'softmax')(X)
    return tf.keras.Model(inputs = input_spec,outputs = output)
-model = conv_bn_more_drop((1071,16,1))
-model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
-model.summary()
-history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+model3 = conv_bn_more_drop((1071,16,1))
+model3.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model3.summary()
+history = model3.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 # best!! 100% train accuracy, 70% dev accuracy
 
 # now let's try with L2 regularization
@@ -1104,8 +1104,391 @@ def conv_general_drop(input_shape, r):
    X = tfl.Flatten()(X)
    output = tfl.Dense(4,activation = 'softmax')(X)
    return tf.keras.Model(inputs = input_spec,outputs = output)
-model = conv_general_drop((1071,16,1),0.01)
+model4 = conv_general_drop((1071,16,1),0.01)
+model4.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model4.summary()
+history = model4.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# best!! 100% train accuracy, 70% dev accuracy
+# try adjusting kernel strides and sizes in first conv layer!!
+
+# now let's plot the confusion matrices on the dev set
+predictions1 = model1.predict(X_dev)
+predictions2 = model2.predict(X_dev)
+predictions3 = model3.predict(X_dev)
+predictions4 = model4.predict(X_dev)
+
+conf1 = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions1, axis = 1)).numpy() # rows are real labels, columns are predicted labels
+conf2 = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions2, axis = 1)).numpy()
+conf3 = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions3, axis = 1)).numpy()
+conf4 = tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(predictions4, axis = 1)).numpy()
+conf1 = conf1/conf1.sum(axis = 1, keepdims = True)
+conf2 = conf2/conf2.sum(axis = 1, keepdims = True)
+conf3 = conf3/conf3.sum(axis = 1, keepdims = True)
+conf4 = conf4/conf4.sum(axis = 1, keepdims = True)
+conf_mean = (conf1+conf2+conf3+conf4)/4.0
+
+# create mean model
+def mm(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X1 = model1(input_spec)
+   X2 = model2(input_spec)
+   X3 = model3(input_spec)
+   X4 = model4(input_spec)
+   output = tf.add_n([X1, X2, X3, X4])/4.0
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mean_model = mm((1071, 16, 1))
+mean_preds = mean_model(X_dev)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mean_preds, axis = 1)).numpy() # rows are real labels, columns are predicted labels
+
+# create max model
+def max_m(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X1 = model1(input_spec)
+   X2 = model2(input_spec)
+   X3 = model3(input_spec)
+   X4 = model4(input_spec)
+   N = input_spec.shape[0]
+   max1 = tf.reshape(tf.reduce_max(X1, axis = 1), shape = (N, 1))
+   max2 = tf.reshape(tf.reduce_max(X2, axis = 1), shape = (N, 1))
+   max3 = tf.reshape(tf.reduce_max(X3, axis = 1), shape = (N, 1))
+   max4 = tf.reshape(tf.reduce_max(X4, axis = 1), shape = (N, 1))
+   merged = tf.concat([max1, max2, max3, max4], axis = 1)
+   argmax_merged = tf.math.argmax(merged, axis = 1)
+   def get_pred(ind, val):
+      if ind == 0:
+         return X1[val,:]
+      if ind == 1:
+         return X2[val,:]
+      if ind == 2:
+         return X3[val,:]
+      return X4[val,:]
+   concat = tf.concat([get_pred(argmax_merged[i].numpy(),i) for i in range(len(argmax_merged))], axis = 0)
+   output = tf.reshape(concat,shape = (N, 4))
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+
+def max_m(X):
+   X1 = model1(X)
+   X2 = model2(X)
+   X3 = model3(X)
+   X4 = model4(X)
+   N = X.shape[0]
+   max1 = tf.reshape(tf.reduce_max(X1, axis = 1), shape = (N, 1))
+   max2 = tf.reshape(tf.reduce_max(X2, axis = 1), shape = (N, 1))
+   max3 = tf.reshape(tf.reduce_max(X3, axis = 1), shape = (N, 1))
+   max4 = tf.reshape(tf.reduce_max(X4, axis = 1), shape = (N, 1))
+   merged = tf.concat([max1, max2, max3, max4], axis = 1)
+   argmax_merged = tf.math.argmax(merged, axis = 1)
+   def get_pred(ind, val):
+      if ind == 0:
+         return X1[val,:]
+      if ind == 1:
+         return X2[val,:]
+      if ind == 2:
+         return X3[val,:]
+      return X4[val,:]
+   concat = tf.concat([get_pred(argmax_merged[i].numpy(),i) for i in range(len(argmax_merged))], axis = 0)
+   output = tf.reshape(concat,shape = (N, 4))
+   return output
+
+max_preds = max_m(X_dev)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(max_preds, axis = 1)).numpy() # rows are real labels, columns are predicted labels
+
+def conv_general(input_shape, r, num_first_filters):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = num_first_filters,kernel_size = (643, 2),padding = 'same',strides = (10, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (108,2),strides = (1,1),padding = 'same')(X)
+   if r != None:
+      X = tfl.Dropout(rate = r)(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 2*num_first_filters,kernel_size = (10, 2),padding = 'same',strides = (10, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (10,2),strides = (1,1),padding = 'same')(X)
+   if r != None:
+      X = tfl.Dropout(rate = r)(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 4*num_first_filters,kernel_size = (11, 2),strides = (1, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (1,2),strides = (1,1))(X)
+   if r != None:
+      X = tfl.Dropout(rate = r)(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_general((1071,16,1), None, 2)
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# works on training set, not on dev set
+
+model = conv_general((1071,16,1), 0.2, 2)
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# not good on either
+
+model = conv_general((1071,16,1), None, 1)
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# not good on either
+
+def conv_pipe(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 4,kernel_size = (643, 2),padding = 'same',strides = (10, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (108,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 4,kernel_size = (10, 2),padding = 'same',strides = (10, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (10,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 4,kernel_size = (11, 2),strides = (1, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (1,2),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_pipe((1071,16,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+def conv_small(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 4,kernel_size = (322, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,2),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Dropout(rate = 0.3)(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_small((1071,16,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# not bad, but plateau's at about 0.5 for dev set accuracy
+
+def conv_bn_drop_more(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 8,kernel_size = (643, 2),padding = 'same',strides = (10, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (108,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 16,kernel_size = (10, 2),padding = 'same',strides = (10, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (10,2),strides = (1,1),padding = 'same')(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Conv2D(filters = 32,kernel_size = (11, 2),strides = (1, 1))(X)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (1,2),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dropout(rate = 0.3)(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_bn_drop_more((1071,16,1))
 model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
 model.summary()
 history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 # best!! 100% train accuracy, 70% dev accuracy
+
+def conv_big_stride(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 4,kernel_size = (322, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,2),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_big_stride((1071,16,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# good on train, not on dev still (50% ish)
+
+def conv_minimal(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (643, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,16),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal((1071,16,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# bad
+
+# try to decrease data size even more...
+X_train = X_train[:,:,range(6,16)]
+X_dev = X_dev[:,:,range(6,16)]
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(50)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(50)
+def conv_minimal(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (643, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   #X = tfl.MaxPool2D(pool_size = (11,16),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# good on train, 60% on dev
+
+def conv_minimal2(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 4,kernel_size = (643, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal2((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# same as above
+
+def conv_minimal3(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,10),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal3((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# bad
+
+def conv_minimal4(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal4((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# good on train, 60% on dev
+
+def conv_minimal5(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dropout(rate = 0.5)(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal5((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# good on train, 60% on dev
+
+def conv_minimal6(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax',kernel_regularizer = tf.keras.regularizers.L2(l2 = 10))(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal6((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# good on train, 60% on dev
+
+# get larger data
+train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_data()
+model = conv_minimal4((1071,129,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+
+def conv_minimal7(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dropout(rate = 0.5)(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal5((1071,129,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+
+X_train = X_train[:,:,range(6,16)]
+X_dev = X_dev[:,:,range(6,16)]
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(50)
+dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(50)
+def conv_minimal8(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax',kernel_regularizer = tf.keras.regularizers.L1(l1 = 0.01))(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal8((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# good on train, 60% on dev
+
+def conv_minimal_reg(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 10,kernel_size = (150, 2),padding = 'same',strides = (100, 1),kernel_regularizer = tf.keras.regularizers.L2(l2 = 0.1))(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4,activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = conv_minimal_reg((1071,10,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+
+# current best model
+def current_best(rate):
+   def mod(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = rate))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+   return mod
+model = current_best(0.1)((1071,10))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=20, validation_data=dev_dataset)
+
+# try getting a bunch of 100% training set models and take bagged model
