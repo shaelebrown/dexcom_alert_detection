@@ -19,6 +19,7 @@ from tensorflow.python.framework import ops
 from keras.regularizers import l2
 import keras
 from keras import backend as K
+import matplotlib.pyplot as plt
 
 # set random state for reproducibility in python, numpy and tf
 tf.keras.utils.set_random_seed(123)
@@ -1654,6 +1655,42 @@ model.summary()
 history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
 # same
 model = conv_general_drop((1071,16,1),0.01)
-model.compile(optimizer=tf.keras.optimizers.AdamW(weight_decay=0.032),loss='categorical_crossentropy',metrics=['accuracy'])
+model.compile(optimizer=tf.keras.optimizers.AdamW(weight_decay=0.1),loss='categorical_crossentropy',metrics=['accuracy'])
 model.summary()
 history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# same
+model = conv_general_drop((1071,16,1),0.01)
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+
+# examine predictions with saliency maps:
+test_img = tf.convert_to_tensor(np.expand_dims(X_train[0,:,:],axis = 0))
+with tf.GradientTape() as tape:
+   tape.watch(test_img)
+   result = model(test_img)
+   max_idx = tf.argmax(result,axis = 1)
+   max_score = result[0,max_idx[0]]
+grads = tape.gradient(max_score, test_img)
+
+# plot grads and original image
+max_grad = tf.math.reduce_max(grads).numpy()
+grad_img = grads[0,:,:]/max_grad
+grad_img = grad_img.numpy()
+max_orig = tf.math.reduce_max(test_img).numpy()
+img = test_img[0,:,:]/max_orig
+img = img.numpy()
+t = 0.0026666666666666666 + 0.004666666666666666*np.arange(1071) # consistent across files
+f = 187.5*np.arange(16) # consistent across all files
+plt.clf()
+plt.pcolormesh(t, f, grad_img.T)
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Example grad')
+plt.savefig("/Users/jibaccount/Downloads/grad.pdf", format="pdf", bbox_inches="tight")
+plt.clf()
+plt.pcolormesh(t, f, img.T)
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Original')
+plt.savefig("/Users/jibaccount/Downloads/original.pdf", format="pdf", bbox_inches="tight")
