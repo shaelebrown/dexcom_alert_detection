@@ -123,9 +123,9 @@ plt.show()
 # urgent low: 536
 
 # frequency range for each alert:
-# high: 2
-# low: 2
-# urgent_low: 3
+# high: 13-15
+# low: 13-15
+# urgent_low: 7-10
 
 # let's see why the model thought the prediction was negative
 # this took about 27 mins for me...
@@ -437,3 +437,41 @@ for ind in inds:
     play(audio)
     time.sleep(1)
 # plays in a loop
+    
+# subset dataset and visualize for custom convolution layers
+X_train = X_train[:,:,[7,8,9,10,13,14,15]]
+X_dev = X_dev[:,:,[7,8,9,10,13,14,15]]
+
+plt.pcolormesh(range(7), range(1071), X_train[0,:,range(7)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Negative example')
+plt.show()
+
+plt.pcolormesh(range(7), range(1071), X_train[500,:,range(7)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('High example')
+plt.show()
+
+plt.pcolormesh(range(7), range(1071), X_train[800,:,range(7)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Low example')
+plt.show()
+
+plt.pcolormesh(range(7), range(1071), X_train[1200,:,range(7)].T, shading='gouraud') #0-399 for negative, 400-799 for high, 800-1199 for low and 1200-1599 for urgent low
+plt.ylabel('Frequency [Hz]')
+plt.xlabel('Time [sec]')
+plt.title('Urgent low example')
+plt.show()
+
+# captures all of the alerts
+# 4-6 and 692-894 for high in X_train[500]
+# 4-6 and 74-397 for low in X_train[800]
+# 0-2 and 368-764 for urgent low in X_train[1200]
+
+# therefore let's do kernels which are initialized as
+# X_train[500,593:993,4:6]
+# X_train[800,35:435,4:6]
+# X_train[1200,366:766,0:2]
