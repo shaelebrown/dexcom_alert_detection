@@ -2092,3 +2092,466 @@ history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 # no better
 
 # check if best models are making mistakes that humans would!
+
+# now do with rebalanced data
+def split_into_sevenths(X):
+    random.shuffle(X)
+    negative, high, low, urgent_low, unclear_high, unclear_low, unclear_urgent_low = np.array_split(X, 7)
+    return negative, high, low, urgent_low, unclear_high, unclear_low, unclear_urgent_low
+
+def generate_balanced_data():
+    # splitting data into train, test and dev sets
+    fnames = os.listdir('data/ESC-50-master/audio')
+    train, subset = train_test_split(fnames, test_size = 0.2, random_state = 123)
+    dev, test = train_test_split(subset, test_size = 0.5, random_state = 123)
+    del subset
+    train_negative, train_high, train_low, train_urgent_low, train_unclear_high, train_unclear_low, train_unclear_urgent_low = split_into_sevenths(train)
+    dev_negative, dev_high, dev_low, dev_urgent_low, dev_unclear_high, dev_unclear_low, dev_unclear_urgent_low = split_into_sevenths(dev)
+    test_negative, test_high, test_low, test_urgent_low, test_unclear_high, test_unclear_low, test_unclear_urgent_low = split_into_sevenths(test)
+    # overlay correct alerts over each audio clip, convert to spectrograms
+    # and concatenate
+    train_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None, type = 'train', index = np.where(train_negative == f)) for f in train_negative],axis = 0)
+    train_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low', type = 'train', index = np.where(train_low == f)[0] + len(train_negative) + len(train_high) + len(train_unclear_high)) for f in train_low],axis = 0)
+    train_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high', type = 'train', index = np.where(train_high == f)[0] + len(train_negative)) for f in train_high],axis = 0)
+    train_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low', type = 'train', index = np.where(train_urgent_low == f)[0] + len(train_negative) + len(train_high) + len(train_unclear_high) + len(train_low) + len(train_unclear_low)) for f in train_urgent_low],axis = 0)
+    train_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low', type = 'train', index = np.where(train_unclear_low == f)[0] + len(train_negative) + len(train_high) + len(train_unclear_high) + len(train_low)) for f in train_unclear_low],axis = 0)
+    train_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high', type = 'train', index = np.where(train_unclear_high == f)[0] + len(train_negative) + len(train_high)) for f in train_unclear_high],axis = 0)
+    train_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low', type = 'train', index = np.where(train_unclear_urgent_low == f)[0] + len(train_negative) + len(train_high) + len(train_unclear_high) + len(train_low) + len(train_unclear_low) + len(train_urgent_low)) for f in train_unclear_urgent_low],axis = 0)
+    dev_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None, type = 'dev', index = np.where(dev_negative == f)[0]) for f in dev_negative],axis = 0)
+    dev_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low', type = 'dev', index = np.where(dev_low == f)[0] + len(dev_negative) + len(dev_high) + len(dev_unclear_high)) for f in dev_low],axis = 0)
+    dev_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high', type = 'dev', index = np.where(dev_high == f)[0] + len(dev_negative)) for f in dev_high],axis = 0)
+    dev_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low', type = 'dev',index = np.where(dev_urgent_low == f)[0] + len(dev_negative) + len(dev_high) + len(dev_unclear_high) + len(dev_low) + len(dev_unclear_low)) for f in dev_urgent_low],axis = 0)
+    dev_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low', type = 'dev', index = np.where(dev_unclear_low == f)[0] + len(dev_negative) + len(dev_high) + len(dev_unclear_high) + len(dev_low)) for f in dev_unclear_low],axis = 0)
+    dev_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high', type = 'dev', index = np.where(dev_unclear_high == f)[0] + len(dev_negative) + len(dev_high)) for f in dev_unclear_high],axis = 0)
+    dev_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low', type = 'dev', index = np.where(dev_unclear_urgent_low == f)[0] + len(dev_negative) + len(dev_high) + len(dev_unclear_high) + len(dev_low) + len(dev_unclear_low) + len(dev_urgent_low)) for f in dev_unclear_urgent_low],axis = 0)
+    test_negative = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = None, type = 'test', index = np.where(test_negative == f)[0]) for f in test_negative],axis = 0)
+    test_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_low', type = 'test', index = np.where(test_low == f)[0] + len(test_negative) + len(test_high) + len(test_unclear_high)) for f in test_low],axis = 0)
+    test_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_high', type = 'test', index = np.where(test_high == f)[0] + len(test_negative)) for f in test_high],axis = 0)
+    test_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'clear_urgent_low', type = 'test', index = np.where(test_urgent_low == f)[0] + len(test_negative) + len(test_high) + len(test_unclear_high) + len(test_low) + len(test_unclear_low)) for f in test_urgent_low],axis = 0)
+    test_unclear_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_low', type = 'test', index = np.where(test_unclear_low == f)[0] + len(test_negative) + len(test_high) + len(test_unclear_high) + len(test_low)) for f in test_unclear_low],axis = 0)
+    test_unclear_high = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_high', type = 'test', index = np.where(test_unclear_high == f)[0] + len(test_negative) + len(test_high)) for f in test_unclear_high],axis = 0)
+    test_unclear_urgent_low = np.concatenate([spectrogram('data/ESC-50-master/audio/' + f, alert = 'unclear_urgent_low', type = 'test', index = np.where(test_unclear_urgent_low == f)[0] + len(test_negative) + len(test_high) + len(test_unclear_high) + len(test_low) + len(test_unclear_low) + len(test_urgent_low)) for f in test_unclear_urgent_low],axis = 0)
+    # combine into train, test and dev sets for features and labels
+    X_train = np.concatenate([train_negative, train_high, train_unclear_high, train_low, train_unclear_low, train_urgent_low, train_unclear_urgent_low], axis = 0)
+    X_dev = np.concatenate([dev_negative, dev_high, dev_unclear_high, dev_low, dev_unclear_low, dev_urgent_low, dev_unclear_urgent_low], axis = 0)
+    X_test = np.concatenate([test_negative, test_high, test_unclear_high, test_low, test_unclear_low, test_urgent_low, test_unclear_urgent_low], axis = 0)
+    # subset in frequency domain
+    X_train = X_train[:,:,[7,8,9,10,13,14,15]]
+    X_dev = X_dev[:,:,[7,8,9,10,13,14,15]]
+    X_test = X_test[:,:,[7,8,9,10,13,14,15]]
+    # labels are one-hot encoded vectors from 4 classes
+    negative = np.array([1,0,0,0]).reshape((1,4))
+    high = np.array([0,1,0,0]).reshape((1,4))
+    low = np.array([0,0,1,0]).reshape((1,4))
+    urgent_low = np.array([0,0,0,1]).reshape((1,4))
+    Y_train = np.concatenate([negative for x in range(len(train_negative))] + [high for x in range(len(train_high) + len(train_unclear_high))] + [low for x in range(len(train_low) + len(train_unclear_low))] + [urgent_low for x in range(len(train_urgent_low) + len(train_unclear_urgent_low))],axis = 0)
+    Y_dev = np.concatenate([negative for x in range(len(dev_negative))] + [high for x in range(len(dev_high) + len(dev_unclear_high))] + [low for x in range(len(dev_low) + len(dev_unclear_low))] + [urgent_low for x in range(len(dev_urgent_low) + len(dev_unclear_urgent_low))],axis = 0)
+    Y_test = np.concatenate([negative for x in range(len(test_negative))] + [high for x in range(len(test_high) + len(test_unclear_high))] + [low for x in range(len(test_low) + len(test_unclear_low))] + [urgent_low for x in range(len(test_urgent_low) + len(test_unclear_urgent_low))],axis = 0)
+    # split into batches for training speed
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(50)
+    dev_dataset = tf.data.Dataset.from_tensor_slices((X_dev, Y_dev)).batch(50)
+    return train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test
+
+train_dataset, dev_dataset, X_train, Y_train, X_dev, Y_dev, X_test, Y_test = generate_balanced_data()
+
+c1 = X_train[500,413:788,4:6]
+c2 = X_train[800,68:443,4:6]
+c3 = X_train[1200,375:750,0:2]
+init = tf.constant_initializer([c1, c2, c3])
+
+def minimal_preset_nt3(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(64, activation = 'tanh')(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_nt3((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# about 80% and 55%
+
+def minimal_preset1(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (11,1),strides = (1,1))(X)
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset1((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# 50% training and 55% dev set, worse
+
+def minimal_preset_bn(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_bn((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# 65% and 55%
+
+def minimal_preset_bn2(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.BatchNormalization()(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_bn2((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# worse
+
+def minimal_preset_bn_deeper(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (400, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_bn_deeper((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# wrose
+
+def minimal_preset_bn_deep(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_bn_deep((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# 70% and 60%
+# CURRENT BEST MODEL
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# high predicted well, urgent lows predicted well, lows not great
+# negatives are predicted as urgent lows..
+
+def minimal_preset_nt(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_nt((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# 75% and 60%
+
+def minimal_preset_nt2(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_nt2((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# 75% and 45%
+
+def minimal_preset_drop(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(64, activation = 'tanh')(X)
+   X = tfl.Dropout(0.1)(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_drop((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# 90% and 50%!
+
+def minimal_preset_l2(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(64, activation = 'tanh',kernel_regularizer = tf.keras.regularizers.l2(l=0.1))(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_l2((1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# worse
+
+def minimal_preset_drop_custom(r,input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init,trainable = False)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(64, activation = 'tanh')(X)
+   X = tfl.Dropout(r)(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+model = minimal_preset_drop_custom(0.2,(1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# worse
+model = minimal_preset_drop_custom(0.15,(1071,7,1))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=60, validation_data=dev_dataset)
+# 75% and 60%
+
+# one LSTM model
+# old best model
+def bi512_2D(input_shape):
+    input_spec = tf.keras.Input(shape = input_shape)
+    X = tfl.Bidirectional(tfl.LSTM(units = 512, return_sequences = False, dropout = 0.1))(input_spec)
+    X = tfl.Dense(128, activation = 'tanh')(X)
+    outputs = tfl.Dense(4, activation = 'softmax')(X)
+    model = tf.keras.Model(inputs = input_spec, outputs = outputs)
+    return model
+model = bi512_2D((1071,7))
+model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+model.summary()
+history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+model.save('analysis/model.keras')
+
+# create a non-trainable copy
+rnn_model = model
+rnn_model.trainable = False
+
+# mix this model with Conv formatting
+# try with defined input_shapes!
+def mixed1(input_shape, rnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output_conv = tfl.Dense(4, activation = 'softmax')(X)
+   output_joint = tfl.Concatenate(axis = 1)([output_rnn, output_conv])
+   output = tfl.Dense(4, activation = 'softmax')(output_joint)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed1((1071,7,1), rnn_model)
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+
+def mixed2(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   XR = tfl.Reshape(input_shape[0:-1])(input_spec)
+   XR = tfl.Bidirectional(tfl.LSTM(units = 64, return_sequences = False, dropout = 0.1))(XR)
+   XR = tfl.Dense(8, activation = 'tanh')(XR)
+   XC = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   XC = tfl.ReLU()(XC)
+   XC = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(XC)
+   XC = tfl.BatchNormalization()(XC)
+   XC = tfl.Flatten()(XC)
+   XC = tfl.Dense(32, activation = 'tanh')(XC)
+   XC = tfl.Dense(16, activation = 'tanh')(XC)
+   XC = tfl.Dense(8, activation = 'tanh')(XC)
+   output_joint = tfl.Concatenate(axis = 1)([XR, XC])
+   output_joint = tfl.BatchNormalization()(output_joint)
+   output = tfl.Dense(4, activation = 'softmax')(output_joint)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed2((1071,7,1))
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+# not as good
+
+# transfer learning with rnn and cnn?
+def minimal_preset_bn_deep(input_shape):
+   input_spec = tf.keras.Input(shape = input_shape)
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Flatten()(X)
+   X = tfl.Dense(32, activation = 'tanh')(X)
+   X = tfl.Dense(16, activation = 'tanh')(X)
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+cnn_model = minimal_preset_bn_deep((1071,7,1))
+cnn_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+cnn_model.summary()
+history = cnn_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+cnn_model.save('analysis/cnn_model.keras')
+
+# load rnn model
+rnn_model = tf.keras.models.load_model('analysis/model.keras')
+
+# set both to non-trainable
+cnn_model.trainable = False
+rnn_model.trainable = False
+
+# build joint model
+def mixed3(input_shape, rnn_model, cnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   output_cnn = cnn_model(input_spec)
+   eminusx_rnn = 1/output_rnn - 1
+   eminusx_cnn = 1/output_cnn - 1
+   eplusx_rnn = 1/eminusx_rnn
+   eplusx_cnn = 1/eminusx_cnn
+   tanh_rnn = (eplusx_rnn - eminusx_rnn)/(eplusx_rnn + eminusx_rnn)
+   tanh_cnn = (eplusx_cnn - eminusx_cnn)/(eplusx_cnn + eminusx_cnn)
+   joint = tfl.Concatenate(axis = 1)([tanh_rnn, tanh_cnn])
+   joint = tfl.BatchNormalization()(joint)
+   output = tfl.Dense(4, activation = 'softmax')(joint)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed3((1071,7,1), rnn_model, cnn_model)
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+
+# now do without tanh transformation
+def mixed4(input_shape, rnn_model, cnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   output_cnn = cnn_model(input_spec)
+   joint = tfl.Concatenate(axis = 1)([output_rnn, output_cnn])
+   output = tfl.Dense(4, activation = 'softmax')(joint)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed4((1071,7,1), rnn_model, cnn_model)
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# 90 and 80!! best so far
+# next do just weighted averages!
+
+# cnn then rnn
+def mixed5():
+   input_spec = tf.keras.Input(shape = (1071, 7, 1))
+   X = tfl.Conv2D(filters = 3,kernel_size = (375, 2),padding = 'same',strides = (100, 1),kernel_initializer = init)(input_spec)
+   X = tfl.ReLU()(X)
+   X = tfl.MaxPool2D(pool_size = (4,1),strides = (1,1))(X)
+   X = tfl.BatchNormalization()(X)
+   X = tfl.Reshape((8,21))(X)
+   X = tfl.Bidirectional(tfl.LSTM(units = 64, return_sequences = False, dropout = 0.1))(X)   
+   X = tfl.Flatten()(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed5()
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+
+# best but deeper
+def mixed6(input_shape, rnn_model, cnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   output_cnn = cnn_model(input_spec)
+   X = tfl.Concatenate(axis = 1)([output_rnn, output_cnn])
+   X = tfl.Dense(8, activation = 'tanh')(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed6((1071,7,1), rnn_model, cnn_model)
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# 90 and 80!! best so far no better than before
+
+def mixed7(input_shape, rnn_model, cnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   output_cnn = cnn_model(input_spec)
+   X = tfl.Concatenate(axis = 1)([output_rnn, output_cnn])
+   X = tfl.BatchNormalization()(X)
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed7((1071,7,1), rnn_model, cnn_model)
+mixed_model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# way worse
+
+def mixed8(input_shape, rnn_model, cnn_model):
+   input_spec = tf.keras.Input(shape = input_shape)
+   output_rnn = rnn_model(input_spec)
+   output_cnn = cnn_model(input_spec)
+   X = tfl.Concatenate(axis = 1)([output_rnn, output_cnn])
+   output = tfl.Dense(4, activation = 'softmax')(X)
+   return tf.keras.Model(inputs = input_spec,outputs = output)
+mixed_model = mixed8((1071,7,1), rnn_model, cnn_model)
+mixed_model.compile(optimizer=tf.keras.optimizers.AdamW(),loss='categorical_crossentropy',metrics=['accuracy'])
+mixed_model.summary()
+history = mixed_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
+tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(mixed_model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
+# not as good
