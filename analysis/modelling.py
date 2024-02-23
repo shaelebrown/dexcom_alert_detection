@@ -2258,11 +2258,14 @@ model = minimal_preset_bn_deep((1071,7,1))
 model.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
 model.summary()
 history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
-# 70% and 60%
-# CURRENT BEST MODEL
+# 80% and 60%
+# CURRENT BEST CNN MODEL
 tf.math.confusion_matrix(labels = np.argmax(Y_dev, axis = 1),predictions = np.argmax(model(X_dev), axis = 1)) # rows are real labels, columns are predicted labels
 # high predicted well, urgent lows predicted well, lows not great
 # negatives are predicted as urgent lows..
+model.save_weights('analysis/cnn_model.keras')
+cnn_model = minimal_preset_bn_deep((1071,7,1))
+cnn_model.load_weights('analysis/cnn_model.keras')
 
 def minimal_preset_nt(input_shape):
    input_spec = tf.keras.Input(shape = input_shape)
@@ -2381,7 +2384,7 @@ history = model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 model.save('analysis/model.keras')
 
 # create a non-trainable copy
-rnn_model = model
+rnn_model = tf.keras.models.load_model('analysis/model.keras')
 rnn_model.trainable = False
 
 # mix this model with Conv formatting
@@ -2449,8 +2452,11 @@ cnn_model.summary()
 history = cnn_model.fit(train_dataset, epochs=40, validation_data=dev_dataset)
 cnn_model.save('analysis/cnn_model.keras')
 
-# load rnn model
+# load rnn and cnn model
 rnn_model = tf.keras.models.load_model('analysis/model.keras')
+cnn_model = tf.keras.models.load_model('analysis/cnn_model.keras')
+cnn_model = minimal_preset_bn_deep((1071,7,1))
+cnn_model.load_weights('analysis/cnn_model.keras')
 
 # set both to non-trainable
 cnn_model.trainable = False
