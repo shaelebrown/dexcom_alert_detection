@@ -182,6 +182,16 @@ def generate_data():
 
 train_dataset_big, train_dataset_small, init, dev_dataset, X_dev, Y_dev, X_test, Y_test, dev_audio, dev_audio_labels = generate_data()
 
+# get own predictions and confusion matrix
+play(dev_audio)
+own_predictions = np.array([3,2,1,0,0,2,0,2,1,2,1,0,1,3,1,2,2,3,2,1,1,2,3,2,2,0,2,1,1,3,1,2,0,0,0,0,2,0,0,1,2,3,0,1,1,3,0,3,0,3,2,1,0,0,1,0,2,3,3,1,3,0,0,3,3,1,2,1,3,2,0,1,1,3,1,1,2,0,1,2,0,1,0,0,0,2,0,3,3,1,2,0,0,1,3,0,1,1,0,0,0,0,1,2,3,3,3,0,0,3,2,2,1,3,1,3,0,1,3,3,3,3,1,0,0,0,1,2,3,0,2,0,3,2,3,0,3,3,2,1,1,1,0,0,0,3,3,2,2,1,2,3,1,2,3,0,0,2,2,0,1,3,0,1,1,2,2,0,0,2,1,1,3,1,0,3,0,0,3,1,3,0,3,1,0,2,2,2,1,2,0,3,0,3,1,2,1,0,0,0])
+tf.math.confusion_matrix(labels = np.array([['negative', 'high', 'low', 'urgent_low'].index(i) for i in dev_audio_labels]),predictions = own_predictions) # rows are real labels, columns are predicted labels
+# perfect on negative examples, confused lows as high's about 50% of the time,
+# confused lows as highs and urgent lows (equally) about 100% of the time,
+# and confused urgent lows as lows and negatives about 60% of the time total
+(50 + 25 + 1 + 19)/200
+# 47.5% accuracy
+
 # pretrain cnn and rnn models on small datasets
 def cnn(input_shape):
    input_spec = tf.keras.Input(shape = input_shape)
